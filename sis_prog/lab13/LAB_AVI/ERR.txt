@@ -1,0 +1,65 @@
+;---------------- вивід повідомлень про помилки -------------
+.data?
+  ADR_ERR_TEXT	dd ?	; тимчасова адреса для виводу текту про помилку
+
+.code
+;ERR_TEXT_TO_FILE:
+;	mov ADR_ERR_TEXT,offset openname
+;	call PRINT_ERR
+;	db "Помилка запису у файл",0
+
+ERR_MANY_VERTEX:
+	mov ADR_ERR_TEXT,offset TEXT_DRAW_QUADS
+	call PRINT_ERR
+	db "Занадто багато вершин у полігоні",0
+  TEXT_DRAW_QUADS db "модуль DRAW_QUADS",0
+
+ERR_LOAD_TEX_ID:
+	call PRINT_ERR
+	db "Помилковий ідентифікатор текстури",0
+
+ERR_LOAD_HIGH:
+	call PRINT_ERR
+	db "Помилкова ціла частина дійсного числа",0
+
+ERR_LOAD_LOW:
+	call PRINT_ERR
+	db "Помилкова дробова частина дійсного числа",0
+
+ERR_LOAD:
+	call PRINT_ERR
+	db "Помилкове дійсне число",0
+
+PRINT_ERR:
+	pop edi ; витягнули адресу текста
+	mov esi,ADR_ERR_TEXT
+	mov byte ptr [esi+200],0
+	call MessageBoxA,0,esi,edi,10h
+	jmp STOP
+
+;-----------------------------------------
+STOP_ERR:	; видає код помилки
+
+  Extrn GetLastError:Proc, FormatMessageA:Proc, _wsprintfA:Proc
+  FORMAT_MESSAGE_ALLOCATE_BUFFER       equ 100h
+  FORMAT_MESSAGE_FROM_SYSTEM           equ 1000h
+
+.data
+	FORMAT_EAX	db " %Xh  ",0
+	TEXT_BUF	db "STOP:",0
+	ErrCode	dd ?
+	AdrBuf	dd ?
+	_esp	dd ?
+.code
+	call GetLastError
+	mov ErrCode,eax
+	mov _esp,esp
+	call _wsprintfA,offset TEXT_BUF,offset FORMAT_EAX,eax
+	mov esp,_esp
+	call FormatMessageA,FORMAT_MESSAGE_ALLOCATE_BUFFER or FORMAT_MESSAGE_FROM_SYSTEM,0,ErrCode,0,offset AdrBuf,0,0
+	call MessageBoxA,0h,AdrBuf,offset TEXT_BUF,30h
+	jmp STOP
+
+;--------------------
+  include DUMMY.txt ; Замінює підпрограми та змінні, які були вилучені з проекту
+;--------------------

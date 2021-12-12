@@ -1,0 +1,95 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("Roboto-Regular.ttf");
+}
+* {
+  font-family: "Roboto";
+  padding: 0;
+  margin: 0;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+:focus, :active {
+  outline: none;
+}
+
+a:focus, a:active {
+  outline: none;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  -ms-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+input, button, textarea {
+  font-family: "Roboto";
+}
+
+input::-ms-clear {
+  display: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+button::-moz-focus-inner {
+  padding: 0;
+  border: 0;
+}
+
+a, a:visited {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+ul li {
+  list-style: none;
+}
+
+img {
+  vertical-align: top;
+}
+
+.carousel {
+  margin-bottom: 4rem;
+}
+.carousel .carousel-caption {
+  bottom: 3rem;
+  z-index: 10;
+}
+.carousel .carousel-item {
+  height: 75%;
+}
+.carousel .carousel-item img {
+  cursor: pointer;
+  width: 70%;
+  min-width: 500px;
+  height: 100%;
+}
+
+.container-fluid .row .column .card {
+  height: 95%;
+}
+.container-fluid .row .column .card .card-body {
+  padding-top: 5%;
+  padding-left: 3%;
+  padding-right: 3%;
+}
+
+.card {
+  cursor: pointer;
+  width: 20% !important;
+  max-width: 18rem !important;
+  min-width: 15rem !important;
+}

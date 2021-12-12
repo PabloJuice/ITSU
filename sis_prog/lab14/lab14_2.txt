@@ -1,0 +1,53 @@
+.486
+.model flat,stdcall
+includelib wininet.lib
+
+  Extrn InternetOpenA:Proc, InternetOpenUrlA:Proc, InternetReadFile:Proc
+  Extrn InternetCloseHandle:Proc, InternetSetFilePointer:Proc, ExitProcess:Proc
+  Extrn InternetSetOptionA:Proc, MessageBoxA:Proc, InternetQueryOptionA:Proc
+  Extrn InternetGetLastResponseInfoA:Proc, HttpQueryInfoA:Proc
+  Extrn ShellExecuteA:Proc
+
+ INTERNET_OPEN_TYPE_PRECONFIG	equ 0
+ INTERNET_FLAG_RELOAD		equ 80000000h
+
+ HTTP_QUERY_DATE	equ 9
+ HTTP_QUERY_CONTENT_LENGTH	equ 5
+
+.data
+   lpszAgent	db "MicrosoftR Internet Explorer",0
+   lpszURL	db "https://i.ytimg.com/vi/KzkBoUTEzKg/maxresdefault.jpg",0
+   hSession	dd 0
+   h_URL	dd 0
+
+  TITLE1	db "Джус Загальна iнформацiя",0
+  TITLE2	db "Джус Довжина в байтах:",0
+  TITLE3	db "Джус Прочитано:",0
+
+   SizeOfBuffer	dd 1000000
+   BufLen	dd 0
+
+.data?
+BUFFER	db 1000000	dup(?)
+
+.code
+Start:	call InternetOpenA,offset lpszAgent,INTERNET_OPEN_TYPE_PRECONFIG,0,0,0
+	mov hSession,eax
+
+	call InternetOpenUrlA,hSession,offset lpszURL, 0,0,INTERNET_FLAG_RELOAD,0
+	mov h_URL,eax
+
+	mov BufLen,10000
+	call HttpQueryInfoA,h_URL,HTTP_QUERY_DATE,offset BUFFER,offset BufLen,0
+	.if eax==1
+		call MessageBoxA,0,offset BUFFER, offset TITLE1,40h
+	.endif
+	
+	
+
+
+STOP:	call InternetCloseHandle,h_URL
+	call InternetCloseHandle,hSession
+
+	call ExitProcess,0
+end Start

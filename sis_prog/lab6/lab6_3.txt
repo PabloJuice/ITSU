@@ -1,0 +1,75 @@
+.386
+.model flat,stdcall
+   Extrn CreateFontIndirectA:Proc, GetDC:Proc, SelectObject:Proc, SetTextColor:Proc
+   Extrn SetBkColor:Proc, TextOutA:Proc, ReleaseDC:Proc, ExitProcess:Proc
+   Extrn MoveToEx:Proc, LineTo:Proc, CreatePen:Proc, Ellipse:Proc, PolyBezier:Proc
+
+.data
+ HDC	dd	0
+
+LOGFONTA:
+  lfHeight          DD 70	; Висота
+  lfWidth           DD 30	; Ширина
+  lfEscapement      DD 3600+200	; Кут нахилу * 10
+  lfOrientation     DD  0	; 
+  lfWeight          DD 1000	; Жирнiсть (1000-Bold)
+  lfItalic          DB  1	; Курсив
+  lfUnderline       DB  0	; Пiдкреслення
+  lfStrikeOut       DB  0
+  lfCharSet         DB 1	; 255 – шрифти DOS
+  lfOutPrecision    DB  0
+  lfClipPrecision   DB  0
+  lfQuality         DB  1
+  lfPitchAndFamily  DB  0
+  lfFaceName        DB  'Comic Sans MS'  ; Назва фонту
+  Reserv   DB 32-6 dup(0)
+
+ X_coord	dd	80
+ Y_coord	dd	80
+ Text1	db 'Джус Павло  '
+ EndText1	db	0
+
+ BEZIER_POINTS1	dd 232,75, 288,33, 16,17, 42,588
+
+ PREV_POINT	dd ?,?	; тимчасовва структура в яку запишуться координати попередньої краки після малювання.
+ RED_PEN	dd ?	; хендл червоної ручки
+
+.code
+Start: call GetDC,0
+         mov HDC,eax
+;-------------------------------------------------
+         call CreateFontIndirectA, offset LOGFONTA
+         call SelectObject,HDC,eax
+         call SetTextColor,HDC,0022FFh
+         call SetBkColor,HDC,00FFFFh
+         mov eax,offset EndText1
+         sub eax,offset Text1
+         call TextOutA, HDC, X_coord,Y_coord, offset Text1, eax
+
+; Створюємо ручку для малювання:
+
+	call CreatePen,0,10,0000FFh
+	mov RED_PEN,eax
+	; обираємо цю ручку в поточний графічний контекст:
+	call SelectObject,HDC,RED_PEN
+
+; Малювання лінії
+
+	call MoveToEx,HDC,1,5,offset PREV_POINT 	; ставимо крапку
+	call LineTo,HDC,222,500				; проводимо лінію в іншу крапку
+
+	call LineTo,HDC,500,300				; проводимо лінію від попередньої крапки
+
+; Малюємо еліпс
+
+	call Ellipse,HDC,555,555,666,666
+
+; Малювання кривої Без'є:
+
+	call PolyBezier,HDC,offset BEZIER_POINTS1, 4
+
+
+;-------------------------------------------
+         call ReleaseDC,0,HDC
+         call ExitProcess,0
+End Start

@@ -1,0 +1,21 @@
+Варіант 3
+
+1. print(z[::, 0:2])
+
+2. print(p[1][0])
+
+3. [15, 3, 4, 4]
+
+4. dj
+
+5. np_cols = np.column_stack((store, cost))
+
+6. True
+
+7. scatter
+
+8. pd.DataFrame(planets)
+
+9. Line plot
+
+10.  рядки 1-3

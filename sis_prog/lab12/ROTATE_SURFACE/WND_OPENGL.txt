@@ -1,0 +1,597 @@
+
+  extrn ChoosePixelFormat:Proc, SetPixelFormat:Proc, wglCreateContext:Proc
+  extrn wglMakeCurrent:Proc, glViewport:Proc, glMatrixMode:Proc, SetTimer:Proc
+  extrn glEnable:Proc, glLoadIdentity:Proc,gluPerspective:Proc, glGetDoublev:Proc
+  extrn SwapBuffers:PROC, glVertex3f:Proc, glColor3f:Proc,glClear:Proc
+  extrn glTranslatef:Proc, glRotatef:Proc, glBegin:Proc, glEnd:Proc,glFinish:Proc
+  extrn LoadImageA:Proc, GetObjectA:Proc, gluBuild2DMipmaps:Proc, glTexCoord2f:Proc
+  extrn ClientToScreen:Proc, lstrlen:Proc
+  extrn glGenTextures:Proc, glBindTexture:Proc, glDeleteTextures:Proc,GetSystemMetrics:Proc,glDrawPixels:proc
+
+    GL_MODELVIEW_MATRIX   equ  00BA6h
+
+LR_LOADFROMFILE		equ 10h
+LR_CREATEDIBSECTION 	equ 2000h
+IMAGE_BITMAP		equ 0
+GL_UNSIGNED_BYTE	equ 1401h
+GL_RGB			equ 1907h
+
+ WS_CLIPSIBLINGS EQU 04000000h
+ WS_CLIPCHILDREN EQU 02000000h
+ WM_KEYDOWN	 EQU 100h
+ WM_DESTROY      equ 2h
+ WM_SIZING 	 equ 214h
+ WM_TIMER        equ 113h
+
+GL_MODELVIEW                    EQU  1700h
+GL_PROJECTION                   EQU  1701h
+GL_DEPTH_TEST                   EQU  0B71h
+GL_COLOR_BUFFER_BIT     = 00004000h
+GL_DEPTH_BUFFER_BIT     = 00000100h
+GL_TRIANGLE_FAN		equ  00006h
+GL_BGR_EXT              equ  080E0h
+GL_TEXTURE_2D		equ  0DE1h
+
+IDC_CROSS               equ 32515
+IDC_HAND		equ 32649
+
+;==========================================
+.data
+
+BITMAPINFOHEADER:
+  biSize	DD	10*4	; розмiр BITMAPINFOHEADER
+  Tex_Width	DD	0	; ширина бiтового зображення в пiкселах
+  Tex_Height	DD	0	; висота бiтового зображення в пiкселах
+  PLANES_BMP	DW	1	; кiлькiсть площин кольору
+  BITSPIXEL_BMP	DW	24	; кiлькiсть бiт на пiксел
+  biCompression	DD	0	; 0 = BI_RGB ; 3 = BI_bitfields
+  biSizeImage	DD	0	; Width_BMP*Heigth_BMP*BITSPIXEL_BMP/8
+  biXPelsPerMeter DD	0	; роздiльна здатнiсть по горизонталi
+  biYPelsPerMeter DD	0	; роздiльна здатнiсть по вертикалi
+  biClrUsed	DD	0
+  biClrImportant DD	0,0
+
+HImg1		dd	0	; хендл малюнка1
+
+p8q	dq 30.0		; 8и-байтнi константи
+p45q	dq 30.0		; КУТ огляду
+p1q	dq 1.0		 
+
+p1	dd	 1.0		; 4х-байтнi константи
+m1	dd	-1.0
+m4	dd	-4.0
+
+distance	dd -11.0	; відстань до сцени
+
+dt1	dd  0.09	; крок повороту навколо OY
+dt2	dd -0.07	; крок повороту навколо OZ
+r1	dd  0.0		; кут повороту навколо OY
+r2	dd  0.0		; кут повороту навколо OZ
+
+TEMP1	dq 0	; робоча змiнна
+
+GLWndClassName db 'GLABBA',0;
+
+WC	  dd 0023h,offset GLWndProc,0,0	; структура WNDCLASS
+hInstance dd 0,0
+hCursor	  dd 0,1,0,offset GLWndClassName
+
+ hWnd	dd 0	; хендл вiкна
+ GLhDC	dd 0	; графiчний контекст вiкна
+ hRC	dd 0	; графiчний контекст OpenGL
+
+ GLwidth	dd 100		; розмiри вiкна
+ GLheight	dd 100
+ 
+PIXELFORMATDESCRIPTOR:
+  nSize			dw	28h
+  nVersion		dw	2
+  dwFlags		dd	25h	; прапорцi для використання OpenGL
+  iPixelType		db	0
+  cColorBits		db	24	;16
+  cRedBits		db	13 dup(0)
+  cDepthBits		db	32	;16
+  cStencilBits		db	16 dup(0)
+
+                     
+.data?
+hWndGL		dd ?
+BUFOBJECT	dd 200 dup(?)
+
+TEXTURES	dd 2000 dup(?)
+
+;================================================
+.code
+	call GetModuleHandleA,0
+	mov hInstance,eax
+	call LoadCursorA,0,IDC_HAND
+	mov  hCursor,eax
+	call RegisterClassA, offset WC
+
+	call CreateWindowExA,WS_EX_TOPMOST,eax,0,WS_CLIPSIBLINGS or WS_CLIPCHILDREN\
+	or WS_VISIBLE or WS_CHILD or WS_THICKFRAME,0,0,GLwidth,GLheight,NewHWnd,0,hInstance,0
+	mov hWndGL,eax
+
+;=======================================
+	mov eax,MAXY
+	sub eax,120
+
+	push	0	; MDI-структура
+	push	AppHWnd	; програмний модуль
+	push	0	; меню
+	push	hWndGL	; власник
+	push	20	; висота
+	push	200	; ширина
+	push	eax	; координата  y
+	push	30	; координата  x
+	push	WS_CHILD or WS_VISIBLE
+	push    offset WindowCaption	; Заголовок в_кна
+	push    offset SCROLL_CLASSNAME	; _м'я класу в_кна
+	push    0	; Властивост_
+	call    CreateWindowExA 		; Створити в_кно
+	mov     SCROLL_HWnd,eax		; Зберегти хендл в_кна
+;=======================================
+
+	call SetScrollInfo,SCROLL_HWnd,SB_CTL,offset SCROLLINFO, 1
+
+	call GetDC, hWndGL
+	mov GLhDC,eax
+
+	call ChoosePixelFormat, GLhDC, offset PIXELFORMATDESCRIPTOR
+	call SetPixelFormat, GLhDC,eax,offset PIXELFORMATDESCRIPTOR
+	call wglCreateContext, GLhDC		; створити графiчний контекст OpenGL
+	mov hRC,eax
+	call wglMakeCurrent, GLhDC,eax	; вибрати дане вiкно для роботи
+;==============================================
+	call glDeleteTextures,10,offset TEXTURES
+	call glGenTextures,10,offset TEXTURES	; Генеруємо адреси текстур
+;______________________________________________
+	mov	Tex_Width,512	; Ширина малюнку
+	mov	Tex_Height,512	; Висота малюнку
+
+;-----------------------------------------------
+	mov TMP_BLEND,255
+
+	mov esi,offset TEXTURES+0	; текстура
+	call LOAD_TEXTURE
+	db "Texture.bmp",0			; малюнок текстури3
+
+	mov esi,offset TEXTURES+4	; текстура
+	call LOAD_TEXTURE
+	db "Texture1.bmp",0			; малюнок текстури3
+
+	mov esi,offset TEXTURES+8	; текстура
+	call LOAD_TEXTURE
+	db "Texture2.bmp",0			; малюнок текстури3
+
+	mov esi,offset TEXTURES+12	; текстура
+	call LOAD_TEXTURE
+	db "Texture3.bmp",0			; малюнок текстури3
+
+
+;-----------------------------------------------
+
+	call SET_SIZE_SCENE
+
+	call glEnable, GL_DEPTH_TEST	; об'єкти можуть перетинатись
+	call glEnable, GL_TEXTURE_2D	; включити механ_зм обробки текстури
+
+	call SetTimer,hWndGL,1,55,offset WndProc
+
+	jmp EX_WNDGL
+
+;=============================================================
+DrawGLScene proc
+	call glClear,GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT
+
+	call glGetDoublev,GL_MODELVIEW_MATRIX,offset modelview	 ; знаходимо матрицю моделі
+
+.data
+;кут повороту навколо осей OX та OY
+ theta_X dq 0.0
+ theta_Y dq 0.0
+
+;значення приросту кута повороту
+ delta_X	dd 0.0	; поворот навколо осі X	(курсор рухається по Y)
+ delta_Y	dd 0.1		; поворот навколо осі Y (курсор рухається по X)
+ FLG_MOVE_X	dd 0	; навколо якої осі крутимо: 1=X, 0=Y.
+
+  COS_theta	dd 0.0
+  SIN_theta	dd 0.0
+
+  modelview	dq 16 dup(?)	; матриця моделі
+
+  Px1	dd 10.0
+  Px2	dd 0.0
+  Px3	dd 0.0
+
+  Py1	dd 0.0
+  Py2	dd 8.66
+  Py3	dd 5.0
+
+  Pz1	dd 0.0
+  Pz2	dd 0.0
+  Pz3	dd 1.0
+
+.code
+;будемо спостерігати чуть зверху
+
+	cmp FLG_MOVE_X,1
+	jz ROTATE_X
+	finit
+	mov edi,offset Py1
+	call MUL_VECTOR		; Pz= modelview*Py
+
+
+	fld theta_Y
+	fadd delta_Y
+	fstp theta_Y
+
+	call glRotatef,delta_Y,Pz1,Pz2,Pz3	; поворот навколо OY
+
+     jmp DRAW_SP
+
+     ROTATE_X:
+	finit
+	mov edi,offset Px1
+	call MUL_VECTOR
+
+	fld theta_X
+	fadd delta_X
+	fstp theta_X
+
+	call glRotatef,delta_X,Pz1,Pz2,Pz3	; поворот навколо OX
+;--------------------------------------------------
+     DRAW_SP:
+;--------------------------------------------------
+	cmp END_MAS_POINTS_QUADS,0
+	jz ZASTAVKA
+
+    GL_QUADS     equ  00007h
+
+	call glBegin,GL_QUADS
+	mov edi,offset MAS_POINTS_QUADS
+	mov esi,offset MAS_POINTS_TEX
+    L_DAT1:
+;	pushad
+	call glTexCoord2f, dword ptr [esi], dword ptr [esi+4]
+	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]
+;	popad
+	add edi,12
+	add esi,8
+	cmp esi,END_MAS_POINTS_TEX
+    jc L_DAT1
+	call glEnd
+	jmp EX_DD1
+
+;--------------------------------------------------
+ZASTAVKA:
+	GL_POLYGON      equ  00009h
+
+	mov edi,offset GL_XYZ
+  L_DD2:
+	call glBegin,GL_POLYGON
+	mov esi,offset TEX_XY
+    L_DD1:
+	pushad
+	call glTexCoord2f, dword ptr [esi], dword ptr [esi+4]
+	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]
+	popad
+	add edi,12
+	add esi,8
+	cmp dword ptr [edi],0ffffffffh
+    jnz L_DD1
+	call glEnd
+	add edi,4
+	cmp dword ptr [edi],0ffffffffh
+  jnz L_DD2
+	jmp EX_DD1
+
+GL_XYZ:
+	dd 2.750404358, -0.524667664, 0.000000000
+	dd -1.375202179, -0.524667664, -2.381920013
+	dd -1.375202179, -0.524667664, 2.381920013
+	dd 0ffffffffh
+	dd 2.750328979, -0.525061226, -0.000551493
+	dd -1.699909210, -2.224928741, -0.000581905
+	dd -0.850022583, 2.225325623, 1.471525726
+	dd 0ffffffffh
+	dd -1.375642242, -0.525061226, -2.381579132
+	dd 0.849450684, -2.224928741, 1.472455597
+	dd 1.699389954, 2.225325623, 0.000378416
+	dd 0ffffffffh
+	dd 2.750207520, -0.525697937, -0.000340836
+	dd -1.375409698, -0.525754738, 2.381560211
+	dd -0.850150986, 2.224653473, -1.472467041
+	dd 0ffffffffh
+	dd -1.374686890, -0.525061226, 2.382130585
+	dd 0.850458527, -2.224928741, -1.471873627
+	dd -0.849367294, 2.225325623, -1.471904144
+	dd 0ffffffffh
+	dd -1.375399017, -0.525697937, -2.381579132
+	dd 2.750196838, -0.525754738, 0.000359647
+	dd -0.850118484, 2.224653473, 1.472485809
+	dd 0ffffffffh
+	dd -1.700227509, -2.224685516, -0.000030399
+	dd 1.374759369, 0.525741348, 2.381938782
+	dd 1.374816132, 0.525763092, -2.381901245
+	dd 0ffffffffh
+	dd -1.374808502, -0.525697937, 2.381920013
+	dd -1.374786987, -0.525754738, -2.381920013
+	dd 1.700269470, 2.224653473, -0.000018754
+	dd 0ffffffffh
+	dd 0.850087509, -2.224685516, 1.472455444
+	dd 1.375439758, 0.525741348, -2.381546021
+	dd -2.750195007, 0.525763092, 0.000324794
+	dd 0ffffffffh
+	dd -0.849432297, 2.225325470, 1.471866455
+	dd 0.850463638, -2.224901886, 1.471911163
+	dd -1.374630127, -0.525104485, -2.382153778
+	dd 0ffffffffh
+	dd -1.699909210, -2.224928894, 0.000521090
+	dd 2.750328979, -0.525061150, 0.000612208
+	dd -0.849987564, 2.225338898, -1.471525574
+	dd 0ffffffffh
+	dd -1.375652924, -0.525117950, 2.381560211
+	dd 1.699343872, 2.225360565, -0.000336355
+	dd 0.849509964, -2.224893799, -1.472474213
+	dd 0ffffffffh
+	dd 0.850140076, -2.224685516, -1.472425079
+	dd -2.750199280, 0.525741348, -0.000392898
+	dd 1.375378876, 0.525763092, 2.381576538
+	dd 0ffffffffh
+	dd -0.849507446, 2.224931946, 1.472417755
+	dd -1.699365692, -2.225343933, 0.000359691
+	dd 1.375689087, 0.525056038, -2.381553040
+	dd 0ffffffffh
+	dd -0.849514084, 2.224896698, -1.472467041
+	dd 1.375647125, 0.525113144, 2.381564636
+	dd -1.699337158, -2.225365753, -0.000347947
+	dd 0ffffffffh
+	dd -0.850469284, 2.224896698, 1.471915588
+	dd 1.374639282, 0.525112801, -2.382146454
+	dd 0.849426498, -2.225330353, 1.471862030
+	dd 0ffffffffh
+	dd 1.699904785, 2.224931946, -0.000513958
+	dd 0.849994431, -2.225343933, 1.471513977
+	dd -2.750329895, 0.525056038, -0.000605197
+	dd 0ffffffffh
+	dd 1.699950867, 2.224896698, 0.000570190
+	dd -2.750319214, 0.525112801, 0.000600673
+	dd 0.849956818, -2.225330353, -1.471555939
+	dd 0ffffffffh
+	dd -0.850462646, 2.224931946, -1.471866302
+	dd 0.849376373, -2.225317230, -1.471911163
+	dd 1.374681244, 0.525056038, 2.382134857
+	dd 0ffffffffh
+	dd 1.375209656, 0.524732590, -2.381900940
+	dd 1.375174561, 0.524654388, 2.381938477
+	dd -2.750413818, 0.524615936, -0.000011616
+	dd 0ffffffffh
+	dd 0ffffffffh
+TEX_XY:
+	dd 0.146446615, 0.146446615
+	dd 0.370590478, 0.982962906
+	dd 0.982962906, 0.370590478
+EX_DD1:
+
+;--------------------------------------
+	include MY_LOGOTYPE.txt
+;--------------------------------------
+
+	call glFinish	; закiнчити малювати сцену
+	call SwapBuffers,GLhDC		; обмiняти вiдео-сторiнки
+
+	ret
+DrawGLScene endp
+
+;========================================================================
+
+GLWndProc proc uses ebx edi esi, hwnd : DWORD, wmsg : DWORD, wparam: DWORD, lparam:DWORD
+
+	cmp wmsg,WM_DESTROY
+	jz STOP
+
+	cmp wmsg,WM_SIZING
+	jnz NO_SIZING
+
+	mov esi,lparam	; адреса RECT - left,top,right,bottom
+	mov eax,GLFIRST_POINT
+	mov dword ptr [esi],eax
+	mov eax,GLFIRST_POINT+4
+	mov dword ptr [esi+4],eax
+	mov eax,[esi+8]
+	sub eax,[esi]
+	mov GLwidth,eax	; ширина вікна
+	mov eax,[esi+12]
+	sub eax,[esi+4]
+	mov GLheight,eax	; висота вікна
+
+	call SET_SIZE_SCENE
+
+  NO_SIZING:
+	call SCROLL_PROC,hwnd,wmsg,wparam,lparam
+;------------------------------------------------
+
+	call DefWindowProcA,hwnd,wmsg,wparam,lparam
+	ret
+GLWndProc endp
+
+;---------------------------------------------------------------------
+SET_SIZE_SCENE:
+	call glViewport, 0,0,GLwidth,GLheight	; встановити все вiкно для огляду
+	call glMatrixMode, GL_PROJECTION
+
+	call glLoadIdentity	; встановити початковий стан
+
+	fild GLwidth
+	fild GLheight
+	fdivp
+	fstp TEMP1	; TEMP = width / height 
+
+	push qword ptr p8q	; вiдстань до кiнця сцени
+	push qword ptr p1q	; вiдстань до початку сцени
+	push qword ptr TEMP1	; width/height
+	push qword ptr p45q	; кут огляду
+	call gluPerspective	; встановити параметри спостереження
+
+;зсув спостерігача від сцени
+	call glTranslatef,distance_X,0,distance
+
+;обнулення поточної матриці (матриці перетворень моделі)
+	call glMatrixMode, GL_MODELVIEW
+	call glLoadIdentity
+   ret
+
+ distance_X dd 0.0	;-2.5
+
+;======================================== множення вектора EDI на GL-матрицю ESI
+MUL_VECTOR:
+	mov esi,offset modelview
+	mov edx,offset Pz1
+	mov ecx,3	; ???
+    L_MATR2:
+	push ecx
+	push esi
+	push edi
+	fldz
+	fstp dword ptr [edx]
+	mov ecx,3	; ???
+     L_MATR1:
+	fld qword ptr [esi]
+	fmul dword ptr [edi]
+	fadd dword ptr [edx]
+	fstp dword ptr [edx]
+	add esi,8
+	add edi,4
+     loop L_MATR1
+	pop edi
+	pop esi
+	add esi,32
+	add edx,4
+	pop ecx
+   loop L_MATR2
+	ret
+
+;---------------------------------- Створення текстури з BMP-файла:
+  extrn glTexGeniv:Proc, glTexGeni:Proc, glHint:Proc, glTexParameteri:Proc
+
+GL_TEXTURE_GEN_S                   equ  00C60h
+GL_TEXTURE_GEN_T                   equ  00C61h
+GL_OBJECT_PLANE                    equ  02501h
+GL_S                               equ  02000h
+GL_T                               equ  02001h
+GL_EYE_LINEAR                      equ  02400h
+GL_OBJECT_LINEAR                   equ  02401h
+GL_SPHERE_MAP                      equ  02402h
+GL_TEXTURE_GEN_MODE                equ  02500h
+GL_OBJECT_PLANE                    equ  02501h
+GL_EYE_PLANE                       equ  02502h
+GL_TEXTURE_MAG_FILTER              equ  02800h
+GL_TEXTURE_MIN_FILTER              equ  02801h
+GL_PERSPECTIVE_CORRECTION_HINT     equ  00C50h
+GL_NICEST                          equ  01102h
+GL_RGBA                            equ  01908h
+;GL_LINEAR                          equ  02601h
+;GL_NEAREST                         equ  02600h
+GL_LINEAR_MIPMAP_NEAREST           equ  02701h
+GL_BLEND                           equ  00BE2h
+GL_ONE                             equ  1
+GL_ONE_MINUS_SRC_ALPHA             equ  00303h
+GL_BGRA_EXT		equ  080E1h
+
+.data?
+ HImg dd ?
+ ADR_FILENAME	dd ?
+ TMP_BLEND	db ?,?,?,?
+
+ BUF_IMAGE	dd 512*512 dup(?)
+
+.code
+LOAD_TEXTURE:
+	pop ADR_FILENAME
+	call lstrlen,ADR_FILENAME
+	add eax,ADR_FILENAME
+	inc eax
+	push eax	; знайшли адресу повернення
+
+	; Вибираємо поточну текстуру по адресі esi:
+	call glBindTexture,GL_TEXTURE_2D,dword ptr [esi]
+
+	call LoadImageA,0,ADR_FILENAME,IMAGE_BITMAP,Tex_Width,Tex_Height,LR_LOADFROMFILE or LR_CREATEDIBSECTION
+	mov	HImg,eax
+	or eax,eax
+	jz ERR_LOAD_IMG
+
+	call GetObjectA,HImg,0,0
+	call GetObjectA,HImg,eax,offset BUFOBJECT
+
+	mov esi,offset BUFOBJECT
+	mov esi,[esi+20]	; адреса DIB-Section
+
+	cmp TMP_BLEND,0
+	jnz BLEND_TEXTURE
+	; Створюємо 2х-вимiрну текстуру з масиву пiкселей з адресою esi
+	call gluBuild2DMipmaps, GL_TEXTURE_2D, 3, Tex_Width, Tex_Height, GL_BGR_EXT, GL_UNSIGNED_BYTE, esi
+	or eax,eax
+	jnz ERR_LOAD_IMG
+    ret
+
+BLEND_TEXTURE:
+	cld
+	mov edi,offset BUF_IMAGE
+	mov edx,512
+ L_IM1:	mov ecx,512
+	mov ax,512
+	sub ax,dx
+	shr ax,1
+
+mov TMP_BLEND,210
+
+	mov bl,TMP_BLEND
+  L_IM2:
+	lodsb	; працює з ESI
+	mul bl
+	mov al,ah
+	stosb	; працює з EDI
+	lodsb
+	mul bl
+	mov al,ah
+	stosb
+	lodsb
+	mul bl
+	mov al,ah
+	stosb
+
+	mov al,	bl
+	stosb
+    loop L_IM2
+	dec edx
+  jnz L_IM1
+
+
+;Створюємо 2х-вимiрну текстуру з масиву пiкселей BUF_IMAGE
+	call gluBuild2DMipmaps, GL_TEXTURE_2D, 4, 512, 512, GL_BGRA_EXT, GL_UNSIGNED_BYTE, offset BUF_IMAGE
+
+;встановлення фільтра текстури при зменшенні (linear)
+	call glTexParameteri,GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_NEAREST
+;становлення фільтра текстури при збільшенні (linear)
+	call glTexParameteri,GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR_MIPMAP_NEAREST
+
+;тип текстури GL_SPHERE_MAP в напрямках "S" і "T"
+	call glTexGeni,GL_S,GL_TEXTURE_GEN_MODE,GL_SPHERE_MAP
+	call glTexGeni,GL_T,GL_TEXTURE_GEN_MODE,GL_SPHERE_MAP
+;режим розрахунку перспективних перетворень
+	call glHint,GL_PERSPECTIVE_CORRECTION_HINT,GL_NICEST
+  ret
+;------------------------------------
+ERR_LOAD_IMG:
+	call DISPLAY_ERROR
+	db "Error Loading Image:",0
+   DISPLAY_ERROR:
+	pop eax
+	call MessageBoxA,0,ADR_FILENAME,eax,10h
+	jmp STOP
+
+
+EX_WNDGL:

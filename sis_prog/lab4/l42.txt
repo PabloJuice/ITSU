@@ -1,0 +1,110 @@
+.386
+.model flat,STDCALL
+
+extrn InitCommonControls:Proc
+extrn GetModuleHandleA:Proc
+extrn ExitProcess:Proc
+extrn CreateWindowExA:Proc
+extrn GetMessageA:Proc
+extrn DispatchMessageA:Proc
+extrn TranslateMessage:Proc
+extrn SendMessageA:Proc, MessageBoxA:Proc
+
+; Визначення типів (стилів) вікон:
+     WS_POPUP		equ 80000000h
+     WS_VISIBLE		equ 010000000h
+     WS_DLGFRAME	equ 400000h
+     WS_EX_TOPMOST	equ 8h
+     BS_AUTOCHECKBOX    equ 3h
+     ES_MULTILINE       equ 4h
+     WS_VSCROLL                           equ 200000h
+     WS_HSCROLL                           equ 100000h
+     WS_THICKFRAME                        equ 40000h
+
+ WM_GETTEXT                           equ 0Dh
+
+ES_AUTOVSCROLL                       equ 40h
+ES_AUTOHSCROLL                       equ 80h
+
+; Код повідомлення про натиснуту клавішу: 
+     WM_KEYDOWN		equ 100h
+     VK_F1                                equ 70h
+
+.data
+MSG:   ; Структура стандартного повідомлення WINDOWS
+    msHWND		dd 0	; хто надіслав
+    msMESSAGE		dd 0	; яку інформацію
+    msWPARAM		dd 0	; про що
+    msLPARAM		dd 0	; і як
+    msTIME		dd 0	; коли
+    ptX			dd 0	; де (X),
+    ptY			dd 0	;     (Y)
+
+AppHWnd	dd 0
+NewHWnd	dd 0
+WindowCaption	db "Джус Павло",0
+
+CLASSNAME	db 'Button',0	; Ім’я стандартного класу
+
+.data?
+TEXT_BUF	db 260 dup(?)
+
+;=======================================
+.code
+Start:	call InitCommonControls
+
+	push	0h
+	call	GetModuleHandleA
+	mov	AppHWnd,eax
+
+	push	0	; MDI-структура
+	push	AppHWnd	; програмний модуль
+	push	0	; меню
+	push	0	; власник
+	push	100	; висота
+	push	260	; ширина
+	push	250	; координата
+	push	300	; координата  x
+	push	WS_POPUP or WS_VISIBLE or WS_THICKFRAME
+	push    offset WindowCaption	; Заголовок вікна
+	push    offset CLASSNAME	; Ім’я класу вікна
+	push    WS_EX_TOPMOST	; Властивості
+	call    CreateWindowExA 	; Створити вікно
+	mov     NewHWnd,eax		; Зберегти хендл вікна
+;=======================================
+
+MSG_LOOP:	; Цикл прийому повідомлень
+	push    0		     ; діапазон прийому -
+	push    0		     ; всі можливі повідомлення
+	push    NewHWnd     ; від даного вікна
+	push    offset MSG    ; Адреса структури повідомлення
+	call    GetMessageA
+
+	cmp     msMESSAGE,WM_KEYDOWN
+	jnz	CONTINUE_LOOP
+
+	cmp	msWPARAM,1bh		; код <ESC>
+	jz      STOP
+	cmp	msWPARAM,VK_F1		; код <F1>
+	jz      READ_EDIT
+
+CONTINUE_LOOP:
+               push    offset MSG
+               call    TranslateMessage
+	push    offset MSG	; Направити повідомлення у ві-
+	call    DispatchMessageA  ; конну процедуру.
+	jmp     MSG_LOOP
+;==============================
+READ_EDIT:
+	call SendMessageA,NewHWnd,WM_GETTEXT,260,offset TEXT_BUF
+	call MessageBoxA,0,offset TEXT_BUF,offset TEXT_BUF,0
+ jmp MSG_LOOP
+
+;==============================
+STOP:
+	push 0
+	call ExitProcess
+End Start
+
+
+

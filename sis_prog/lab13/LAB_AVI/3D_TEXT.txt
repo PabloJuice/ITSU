@@ -1,0 +1,102 @@
+ Extrn CreateFontA:Proc, glListBase:Proc, glCallLists:Proc, wglUseFontOutlinesA:Proc
+ Extrn glListBase:Proc, lstrlen:Proc, glLightfv:Proc, glDisable:Proc, glMaterialfv:Proc
+ Extrn glScalef:Proc
+
+ WGL_FONT_POLYGONS   	equ  1
+ GL_LIGHTING            equ  00B50h
+ GL_LIGHT0              equ  04000h
+
+ GL_TEXTURE_GEN_S       equ  00C60h
+ GL_TEXTURE_GEN_T       equ  00C61h
+
+ GL_FRONT               equ  00404h
+ GL_EMISSION            equ  01600h
+
+.data
+  FLG_PREPARE_FONT dd 0
+
+  CONST_SCALE2 dd 0.8	; масштабування
+  CONST00	dd 0.005	; точність
+  CONST01	dd 0.15	; глибина
+
+  FONT_NAME1	db "Montserrat",0
+  FONT_NAME2	db "Comic Sans MS",0
+
+;  NO_MaterialColor dd 1.0, 1.0, 1.0, 1.0
+
+  MaterialColor1 dd 1.0, 0.0, 0.0, 0.0
+  MaterialColor2 dd 0.0, 0.5, 1.0, 0.0
+
+  mytext1	db "Джус",0
+  mytext2	db "Павло",0
+
+  r1 dd 0.0
+  r2 dd 0.0
+
+ delta_r1 dd 1.5
+ delta_r2 dd 4.5
+
+.code
+	include MY_LOGOTYPE.txt
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp FLG_PREPARE_FONT,1
+    jz OK_PREPARE_FONT
+	call CreateFontA,0,0,0,0,0,0,0,0,1,0,0,0,0,offset FONT_NAME1
+	call SelectObject,GLhDC,eax
+	call wglUseFontOutlinesA, GLhDC, 0, 255, 1, CONST00, CONST01, WGL_FONT_POLYGONS,0
+
+	call CreateFontA,0,0,0,0,0,0,0,0,1,0,0,0,0,offset FONT_NAME2
+	call SelectObject,GLhDC,eax
+	call wglUseFontOutlinesA, GLhDC, 0, 255, 260, CONST00, CONST01, WGL_FONT_POLYGONS,0
+
+	call glEnable, GL_LIGHTING
+	call glEnable, GL_LIGHT0
+
+	mov FLG_PREPARE_FONT,1
+    OK_PREPARE_FONT: ;--------------------------------------
+
+	call glPushMatrix
+	call glEnable,GL_TEXTURE_GEN_S
+	call glEnable,GL_TEXTURE_GEN_T
+
+	call glMatrixMode,GL_TEXTURE
+	call glLoadIdentity	; встановити початковий стан
+	call glRotatef, r1,0,p1,0	; повертаємо по OY
+	call glRotatef, r2,0,0,p1	; повертаємо по OZ
+	call glRotatef, r2,0,0,p1
+	call glMatrixMode, GL_MODELVIEW
+
+	call glDisable,GL_TEXTURE_2D	; виключити механiзм обробки текстури
+
+	call glRotatef, r2,0,0,p1	; повернути надпис
+
+	call glEnable, GL_LIGHTING	
+	call glTranslatef,m1,0,0
+	call glListBase, 1
+
+	call glPushMatrix
+	call glMaterialfv, GL_FRONT, GL_EMISSION, offset MaterialColor1
+	call lstrlen,offset mytext1
+	call glCallLists, eax, GL_UNSIGNED_BYTE, offset mytext1
+	call glPopMatrix
+
+	call glTranslatef,0,m1,0 ; перемiстити другий надпис 
+	call glScalef, CONST_SCALE2, CONST_SCALE2, CONST_SCALE2
+	call glListBase, 260	; вибрати інші базові фігури
+	call glMaterialfv, GL_FRONT, GL_EMISSION, offset MaterialColor2
+	call lstrlen,offset mytext2
+	call glCallLists, eax, GL_UNSIGNED_BYTE, offset mytext2
+
+	call glDisable,GL_TEXTURE_GEN_S
+	call glDisable,GL_TEXTURE_GEN_T
+	call glMaterialfv, GL_FRONT, GL_EMISSION, offset NO_MaterialColor
+	call glPopMatrix
+
+	fld r1
+	fadd delta_r1	; рух кута повороту r1
+	fstp r1
+
+	fld r2
+	fadd delta_r2	; рух кута повороту r2
+	fstp r2
+

@@ -1,0 +1,432 @@
+; Surface creation by 4-points polygons
+
+  LEN_MAS_FUNCT  equ 200000
+
+.data
+  N_TEX		dd 60	; number of texture elements by rotation
+  M_TEX		dd ?	; number of texture elements by horizontal (integer)
+  N_DT1		dd 40	; = 1/DT1
+
+  DT1	dd 0.025
+  D_Omega1 dd 0.007	;???
+
+  SCALE_X	dd 0.007
+  SCALE_Y	dd 0.007
+  SCALE_Z	dd 0.007
+
+   LINE_INDEX	dd 0 ; < LINE_ID (NUM_LINES) during creating 3D-surface
+
+  DEVIAT1	dd 0.00001	; compensation of rounding Fi in division
+  TEX_CORRECT_Y	 dd 0.0
+  TEX_CORRECT_dY dd 0.0
+
+  FCONST_180	dd 180.0
+  FCONST_2	dd 2.0
+
+.data?
+
+   Alfa	  dd ?
+   Beta	  dd ?
+   Delta_Beta  dd ?	; 2Pi/NUM_LINES
+
+  NUM_LINES	dd ?	; quantaty of lines
+
+  Fi	dd ?,?
+  dFi	dd ?
+  Omega	 dd ?
+  Omega1 dd ?
+  LEN_X	 dd ?
+
+ ITERATION_COUNTER	dd ?
+
+ COS_Omega	dd ?
+ SIN_Omega	dd ?
+
+  X1t	dd ?
+  Y1t	dd ?
+
+;  X2t	dd ?
+  Y2t	dd ?
+
+  X3t	dd ?
+  Y3t	dd ?
+  Z3t	dd ?
+
+  TEX_COORD_X	dd ?
+  TEX_COORD_Y	dd ?
+
+  TEX_COORD_dX	dd ?
+  TEX_COORD_dY	dd ?
+
+; coordinates of 2-D function (input):	
+ MAS_POINTS_FUNCT1	dd LEN_MAS_FUNCT dup (?) ; X,Y integer
+ END_MAS_POINTS_FUNCT1	dd ?
+
+ MAS_POINTS_FUNCT2	dd LEN_MAS_FUNCT dup (?) ; 25*40*2 ; X,Y integer
+ END_MAS_POINTS_FUNCT2	dd ?
+
+;--------------------------------------------------------- Result:
+ MAS_POINTS_QUADS	dd 900000 dup (?) ; 25*40*2*4 ; X,Y,Z float
+ END_MAS_POINTS_QUADS	dd ?
+
+ MAS_POINTS_TEX		dd 900000 dup (?) ; 25*40*2*4 ; X,Y float
+ END_MAS_POINTS_TEX	dd ?
+;-----------------------------------------------------------------
+
+.code
+CREATE_SURFACE_DATA:
+;-----------------------------  defining the basic variables
+	call GETNUMLINES
+
+	shl eax,3	; N_TEX>NUM_LINESx8
+	cmp eax,N_TEX
+      jc N_TEX_OK
+	mov N_TEX,eax
+      N_TEX_OK:
+
+	mov ITERATION_COUNTER,0
+
+	finit
+	fldz
+	fst TEX_CORRECT_Y
+	fst Fi
+	fstp Alfa
+
+	fldpi
+	fmul FCONST_2
+	fidiv NUM_LINES
+	fst Delta_Beta
+	fstp Beta
+;--------------------------------------
+	mov eax,offset MAS_POINTS_QUADS	; clean the array of rectangle's coordinates
+	mov END_MAS_POINTS_QUADS,eax
+
+	mov eax,offset MAS_POINTS_TEX	; clean the array of texture's coordinates
+	mov END_MAS_POINTS_TEX,eax
+;---------------------------------------
+	fldpi
+	fmul FCONST_2
+	fadd DEVIAT1	; compensation of rounding Fi in division
+	fidiv N_TEX
+	fstp dFi	; "Delta fi" found as 2Pi/N_TEX
+	fld1
+	fidiv N_TEX
+	fstp TEX_COORD_dX	; TEX_COORD_dX = 1/N_TEX
+
+	fild Y_SYM2
+	fisub Y_SYM1
+	fild X_SYM2
+	fisub X_SYM1
+	fpatan			; found the angle Omega
+
+	fchs
+	fst Omega	; Omega = -Omega
+	fsincos		; Compute the sine and cosine of ST(0); replace ST(0) with the sine, and push the cosine onto the register stack.
+	fstp COS_Omega
+	fstp SIN_Omega
+
+	mov LINE_INDEX,0	; defines the current line
+
+	mov ecx,NUM_LINES
+L_LINE_INDEX:	;------------------------------------- draw the next line:
+	push ecx
+
+     call CREATE_ARRAY_OF_FUNCTION1	; create current shape
+     inc LINE_INDEX
+     call CREATE_ARRAY_OF_FUNCTION2	; create next shape
+;???????????
+	mov esi,END_MAS_POINTS_FUNCT1
+	sub esi,8
+	mov eax,[esi]
+	sub eax,MAS_POINTS_FUNCT1
+	mov LEN_X,eax
+	sar eax,1
+	mov HALF_OF_LEN_X,eax
+	mov eax,[esi]
+	add eax,MAS_POINTS_FUNCT1
+	sar eax,1
+	mov X_SYM1a,eax
+;???????????
+	mov eax,END_MAS_POINTS_FUNCT1
+	sub eax,offset MAS_POINTS_FUNCT1	; (X,Y) = 8 bytes
+	shr eax,3
+	mov M_TEX,eax	; calculate the number of points in the line
+
+	finit
+;	fldpi
+;	fimul LAMBDA
+;	fdiv FCONST_180
+;	fstp F_LAMBDA
+
+	fild infinity
+	fstp R
+;	cmp LAMBDA,0
+;	jz C_LAM0
+;	fild LEN_X
+;	fdiv F_LAMBDA
+;	fstp R
+;	C_LAM0:
+
+;	fld F_LAMBDA
+;	fidiv LEN_X
+;	fstp D_Gi
+
+	fld1		; Texture size: 1x1
+	fidiv M_TEX
+	fstp TEX_COORD_dY	; found the Delta Texture Coordinates
+
+	mov edi,END_MAS_POINTS_QUADS	; continue to filling the array
+
+ L_CR_RSURF2:	;-------- Drawing Fj from Alfa to Beta:
+	fldz
+;fld TEX_CORRECT_Y
+	fstp   TEX_COORD_Y
+	fild ITERATION_COUNTER	; st(0)= 0,1,2,3,...N_TEX
+	fmul TEX_COORD_dX
+	fstp TEX_COORD_X
+;----------------------------------------- Horizontal moving
+fldz
+fstp Gi
+
+	mov esi,offset MAS_POINTS_FUNCT1
+   L_CR_HORZ:
+	push qword ptr TEX_COORD_X
+	push qword ptr TEX_COORD_Y
+	push qword ptr Fi
+
+	call FIND_X3_Y3_Z3_AND_STORE_TO_QUADS
+
+	call SAV_TEX_COORD
+
+	add esi,8
+	call FIND_X3_Y3_Z3_AND_STORE_TO_QUADS
+
+	fld TEX_COORD_Y		; moves Y-texture coorinates along the shape
+	fadd TEX_COORD_dY
+	fstp TEX_COORD_Y
+	call SAV_TEX_COORD
+
+	fld Fi
+	fadd dFi
+	fstp Fi
+
+	call FIND_X3_Y3_Z3_AND_STORE_TO_QUADS
+
+	fld TEX_COORD_X
+	fadd TEX_COORD_dX
+	fstp TEX_COORD_X
+	call SAV_TEX_COORD
+
+	sub esi,8
+	call FIND_X3_Y3_Z3_AND_STORE_TO_QUADS
+
+	fld TEX_COORD_Y
+	fsub TEX_COORD_dY
+	fstp TEX_COORD_Y
+
+	call SAV_TEX_COORD
+
+	pop qword ptr Fi	
+	pop qword ptr TEX_COORD_Y
+	pop qword ptr TEX_COORD_X
+
+      fld TEX_COORD_Y		; Next line of texture
+      fadd TEX_COORD_dY
+      fstp TEX_COORD_Y
+
+	add esi,8		; next X,Y in current shape
+	mov edx,END_MAS_POINTS_FUNCT1
+	sub edx,20
+	cmp esi,edx
+
+   jc L_CR_HORZ
+
+;----------------------------- end of one horizontal
+	inc ITERATION_COUNTER
+
+	fld Fi
+	fadd dFi
+	fst Fi	; fstp
+
+	fcomp Beta	; fcom
+	fstsw ax
+	sahf
+     jc L_CR_RSURF2	; cf=1 if st(0)<Beta
+
+;------------------------ end of drawing Fj
+	fld Beta
+	fstp Alfa
+	fld Beta
+	fadd Delta_Beta
+	fstp Beta
+
+;	call CORRECT_TEXTURE_Y
+
+;------------------------------- change the line
+
+	pop ecx
+	dec ecx
+	jnz L_LINE_INDEX
+
+   ret
+
+;-------------------------------------------------------
+;CORRECT_TEXTURE_Y:
+	fld TEX_CORRECT_Y
+	fadd TEX_CORRECT_dY
+	fstp TEX_CORRECT_Y
+  ret
+
+;---------------------------------
+SAV_TEX_COORD:
+	mov edi,END_MAS_POINTS_TEX
+	mov eax,TEX_COORD_X
+	mov [edi],eax
+	add edi,4
+	mov eax,TEX_COORD_Y
+	mov [edi],eax
+	add edi,4
+	mov END_MAS_POINTS_TEX,edi
+  ret
+
+;------------------------------------------------------------------
+CREATE_ARRAY_OF_FUNCTION1:
+   mov eax,offset MAS_POINTS_FUNCT1	; Create array of function1
+   mov END_MAS_POINTS_FUNCT1,eax
+
+	mov eax,MAX_POINTS	; 25
+	mov ecx,LINE_INDEX
+	cmp ecx,NUM_LINES
+     jc OK_ECX1
+	mov ecx,0
+     OK_ECX1:
+	mul ecx
+	shl eax,4		;x16
+	add eax,offset POINTS
+	mov esi,eax
+
+	mov ecx,NUMBER_OF_POINTS	; in each line
+	dec ecx
+   L_ECX5:
+	push ecx
+	call SAVE_POINT_TO_ESI1	; ESI points to the current parabola
+	add esi,16
+	pop ecx
+   LOOP L_ECX5
+  ret
+
+SAVE_POINT_TO_ESI1:
+	call CALCULATE_ABC
+
+; X= KAx*t*t + KBx*t + X0
+; Y= KAy*t*t + KBy*t + Y0
+
+	finit
+	fldz
+	fstp T
+
+	mov eax,[esi]	;X0
+	mov XT,eax
+	mov eax,[esi+4]	;Y0
+	mov YT,eax
+
+	mov ecx,N_DT1
+   L_SPTE1:
+	push ecx
+
+	fld T
+	fadd DT1
+	fstp T		; T:= T+dt
+
+	call CALC_XY
+
+;------ save XT,YT to MAS_POINTS_FUNCT1:
+	mov edx,END_MAS_POINTS_FUNCT1
+	mov eax,XT
+	mov [edx],eax
+	mov eax,YT
+	mov [edx+4],eax
+	add END_MAS_POINTS_FUNCT1,8
+;--------------------
+
+	pop ecx
+   loop L_SPTE1
+
+  ret
+
+;-------------------------------------------------
+CREATE_ARRAY_OF_FUNCTION2:
+   mov eax,offset MAS_POINTS_FUNCT2	; Create array of function2
+   mov END_MAS_POINTS_FUNCT2,eax
+
+	mov eax,MAX_POINTS	; 25
+	mov ecx,LINE_INDEX
+	cmp ecx,NUM_LINES
+     jc OK_ECX2
+	mov ecx,0
+     OK_ECX2:
+	mul ecx
+	shl eax,4		;x16
+	add eax,offset POINTS
+	mov esi,eax
+
+	mov ecx,NUMBER_OF_POINTS	; in each line
+	dec ecx
+   L_ECX6:
+	push ecx
+	call SAVE_POINT_TO_ESI2	; ESI points to the current parabola
+	add esi,16
+	pop ecx
+   LOOP L_ECX6
+  ret
+
+SAVE_POINT_TO_ESI2:
+	call CALCULATE_ABC
+
+; X= KAx*t*t + KBx*t + X0
+; Y= KAy*t*t + KBy*t + Y0
+
+	finit
+	fldz
+	fstp T
+
+	mov eax,[esi]	;X0
+	mov XT,eax
+	mov eax,[esi+4]	;Y0
+	mov YT,eax
+
+	mov ecx,N_DT1
+   L_SPTE2:
+	push ecx
+
+	fld T
+	fadd DT1
+	fstp T		; T:= T+dt
+
+	call CALC_XY
+
+;------ save XT,YT to MAS_POINTS_FUNCT2:
+	mov edx,END_MAS_POINTS_FUNCT2
+	mov eax,XT
+	mov [edx],eax
+	mov eax,YT
+	mov [edx+4],eax
+	add END_MAS_POINTS_FUNCT2,8
+;--------------------
+
+	pop ecx
+   loop L_SPTE2
+
+  ret
+
+;--------------------
+GETNUMLINES:
+	mov eax,LINE_ID
+	cmp eax,0
+    jnz C_LNI2
+	mov eax,1
+    C_LNI2:
+	mov NUM_LINES,eax
+  ret
+
+  include CALCULATE_SURFACE.txt

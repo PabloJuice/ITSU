@@ -1,0 +1,288 @@
+.486
+.model flat, stdcall
+
+extrn ExitProcess:Proc
+extrn CreateWindowExA:Proc
+extrn RegisterClassA:Proc
+extrn GetMessageA:Proc
+extrn DispatchMessageA:Proc
+extrn DefWindowProcA:Proc
+extrn MessageBoxA:Proc
+extrn DirectDrawCreate:Proc
+extrn SetTimer:Proc
+extrn ShowCursor:Proc
+extrn TextOutA:Proc
+extrn lstrlen:Proc
+extrn SetBkMode:Proc
+Extrn CreateSolidBrush:Proc, SelectObject:Proc, Rectangle:Proc, DeleteObject:Proc
+   Extrn SetTextColor:Proc, CreatePen:Proc, LineTo:Proc, MoveToEx:Proc, PolyBezier:Proc
+   Extrn CreateFontIndirectA:Proc
+
+	      INCLUDELIB DDraw.LIB
+	SetCooperativeLevel	equ  50h
+	SetDisplayMode		equ  54h
+	CreateSurface		equ  18h
+	Surface_Lock		equ  64h
+	Surface_Unlock		equ  80h
+	Surface_Restore		equ  6Ch
+	Surface_GetDC		equ  44h
+	Surface_ReleaseDC	equ  68h
+	GetAttachedSurface	equ  30h
+	Surface_Flip		equ  2Ch
+
+WM_CREATE               equ 1h
+WM_KEYDOWN		equ 100h
+WM_TIMER                equ 113h
+WS_POPUP                equ 80000000h
+
+ DDSD_CAPS		equ  000001h
+ DDSD_PITCH		equ  000008h
+ DDSD_BACKBUFFERCOUNT	equ  000020h
+DDSCAPS_PRIMARYSURFACE	equ 200h
+DDSCAPS_FRONTBUFFER	equ 20h
+DDSCAPS_BACKBUFFER	equ 04h
+DDSCAPS_FLIP		equ 10h
+DDSCAPS_COMPLEX		equ 08h
+DDLOCK_WAIT		equ 1
+DDFLIP_WAIT		equ 1
+ DDSCL_FULLSCREEN	equ  1h
+ DDSCL_EXCLUSIVE	equ  10h
+;=======================================================
+
+.data
+wc:  dd 0, offset WndProc, 7 dup(0), offset WndClassName
+
+msg:
+    msHWND	dd 0
+    msMESSAGE	dd 0
+    msWPARAM	dd 0
+    msLPARAM	dd 0
+    msTIME	dd 0
+    ptX		dd 0
+    ptY		dd 0
+
+NewHWnd         dd 0
+WndClassName    db "DeepPurple",0
+TEXT1		db " Джус Павло ",0
+
+SCREEN_WIDTH	dd 1920
+SCREEN_HEIGHT	dd 1080
+SCREEN_BPP	dd 16
+
+LPDD	dd 0	; ddraw interface pointer
+LPS	dd 0
+DDBACK	dd 0
+
+DDSURFACEDESC2:
+ dd 108,DDSD_CAPS or DDSD_BACKBUFFERCOUNT,0,0
+ lPitch			dd 0
+ dwBackBufferCount	dd 1,0,0,0	;       number of back buffers requested
+ lpSurface		dd 0,16 dup(0); pointer to the associated surface memory
+ ddsCaps		dd DDSCAPS_PRIMARYSURFACE or DDSCAPS_COMPLEX or DDSCAPS_FLIP
+ dwTextureStage		dd 0	;       stage in multitexture cascade
+
+BEGIN_COLOR	dd 00
+HDC		dd 0
+X	dd 0
+Y	dd 0
+HV	dd 1
+VV	DD 1
+
+;===============================================================
+.code
+Start:	call    RegisterClassA,offset wc
+        call    CreateWindowExA,0,eax,0,WS_POPUP,1,1,1,1,0,0,0,0
+        mov     NewHWnd,eax
+	call	ShowCursor,0
+	call	SetTimer,NewHWnd,0,20,offset WndProc
+;===============================================================
+msg_loop:
+        call    GetMessageA,offset msg,NewHWnd,0,0
+        cmp     eax,-1
+        jz      STOP
+	cmp     msMESSAGE,WM_KEYDOWN
+	jnz	CONTINUE_LOOP
+	cmp	msWPARAM,1bh
+	jz      STOP
+  CONTINUE_LOOP:
+        call    DispatchMessageA,offset msg
+        jmp     msg_loop
+
+STOP:	call ExitProcess,0
+
+;========================================================================
+WndProc          proc  hwnd:DWORD, wmsg:DWORD, wparam:DWORD, lparam:DWORD
+	cmp wmsg,WM_CREATE
+	jnz TIMER
+
+	call	DirectDrawCreate, 0, offset LPDD, 0
+
+	mov	eax,LPDD
+	mov	eax, [eax]
+	call	[eax+SetCooperativeLevel],LPDD, hwnd, DDSCL_EXCLUSIVE OR DDSCL_FULLSCREEN ;OR DDSCL_ALLOWREBOOT OR DDSCL_ALLOWMODEX  
+
+	mov	eax,LPDD
+	mov	eax, [eax]
+	call	[eax+SetDisplayMode], LPDD, SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP
+
+	mov     eax, LPDD
+	mov     eax, [eax]
+	call    dword ptr [eax+CreateSurface],LPDD, offset DDSURFACEDESC2, offset LPS,0
+
+	or eax,eax
+	jnz STOP
+
+	mov	ddsCaps,DDSCAPS_BACKBUFFER
+
+	mov	eax,LPS
+	mov	eax, [eax]
+	call	dword ptr [eax+GetAttachedSurface],LPS,offset ddsCaps,offset DDBACK
+
+	or eax,eax
+	jnz STOP
+
+
+TIMER:	cmp	wmsg,WM_TIMER
+	jnz	EXIT1
+
+	call PAINT
+	add BEGIN_COLOR,010305h
+
+EXIT1:	call    DefWindowProcA, hwnd, wmsg, wparam, lparam
+        ret
+WndProc          endp
+
+;======================================================================
+PAINT:
+
+	mov	eax,DDBACK
+	mov	eax, [eax]
+	call	dword ptr [eax+Surface_Lock],DDBACK,0,offset DDSURFACEDESC2,DDLOCK_WAIT,0
+	or	eax,eax
+	jnz	EXIT_PAINT
+
+	pushad
+	cld
+	mov eax,BEGIN_COLOR
+	and eax,0ffffffh
+	mov edx,SCREEN_HEIGHT
+	mov ebx,lpSurface
+ L_BLT:	mov edi,ebx
+	mov ecx,SCREEN_WIDTH
+	add eax,10001h
+
+	push eax
+	not eax
+	and eax,0ffffffh
+	repnz stosw
+	pop eax
+
+	add ebx,lPitch
+	dec edx
+	jnz L_BLT
+	popad
+
+	mov     eax,DDBACK
+	mov     eax, [eax]
+	call    [eax+Surface_Unlock],DDBACK,0
+
+	mov     eax,DDBACK
+	mov     eax, [eax]
+	call    [eax+Surface_GetDC],DDBACK,offset HDC
+;----------------------------------------------------- Мій в
+   Extrn CreateSolidBrush:Proc, SelectObject:Proc, Rectangle:Proc, DeleteObject:Proc, SetTextColor:Proc
+
+.data
+  Brush dd ?
+BLUE_COLOR	dd 0ff0000h
+
+BLUE_PEN1	dd ?
+BLUE_BRUSH	dd ?
+
+PREV_POINT     dd ?,?
+ PREV_POINT1    dd ?,?
+ PREV_POINT2    dd ?,?
+ BEZIER_POINTS1 dd 500,800,500,100,900,100,900,800
+ BEZIER_POINTS2 dd 1000,800,1000,500,1400,500,1400,800
+ BEZIER_POINTS3 dd 1100,600,1100,100,1300,100,1300,600
+NUM_POINTS	dd 4
+
+FONT_H dd 0 
+  
+LOGFONTA:
+  lfHeight          DD 70	; Висота
+  lfWidth           DD 20	; Ширина
+  lfEscapement      DD 3600-100	; Кут нахилу * 10
+  lfOrientation     DD  0	; 
+  lfWeight          DD 1000	; Жирнiсть (1000-Bold)
+  lfItalic          DB  1	; Курсив
+  lfUnderline       DB  0	; Пiдкреслення
+  lfStrikeOut       DB  0
+  lfCharSet         DB 1	; 255 – шрифти DOS
+  lfOutPrecision    DB  0
+  lfClipPrecision   DB  0
+  lfQuality         DB  1
+  lfPitchAndFamily  DB  0
+  lfFaceName        DB  'Montserrat'  ; Назва фонту
+
+.code
+	call DeleteObject,Brush
+
+             Call CreateSolidBrush,BEGIN_COLOR	; створюється кисть заданого кольору
+             Mov Brush,eax	; записати хендл кисті;
+
+             Call SelectObject,HDC,Brush	; змінюємо поточну кисть; 
+             Call Rectangle,HDC,100,100,400,270
+
+	call SetTextColor,HDC, 056aaffh
+
+; Створюємо ручку для малювання:
+	call DeleteObject,BLUE_PEN1
+	call CreatePen,0,5,BLUE_COLOR
+	mov BLUE_PEN1,eax
+	call SelectObject,HDC,BLUE_PEN1
+
+; Малювання лінії
+	;call MoveToEx,HDC,500,100,offset PREV_POINT
+	 call LineTo,HDC,500,800
+	call LineTo,HDC,500,100
+	call LineTo,HDC,900,100
+	call LineTo,HDC,900,800
+	 ;call PolyBezier,HDC,offset BEZIER_POINTS1,4
+	call PolyBezier,HDC,offset BEZIER_POINTS2,4
+	call PolyBezier,HDC,offset BEZIER_POINTS3,4
+
+	call DeleteObject,FONT_H
+        call CreateFontIndirectA, offset LOGFONTA
+		mov FONT_H,eax
+        call SelectObject,HDC,FONT_H
+		add lfEscapement,10
+
+	call	SetBkMode,HDC,1
+	call	lstrlen,offset TEXT1
+	call	TextOutA,HDC,X,Y,offset TEXT1,eax
+	mov     eax,DDBACK
+	mov     eax, [eax]
+;-----------------------------------------------------
+	call    [eax+Surface_ReleaseDC],DDBACK,HDC
+	mov	eax,HV
+	add	X,eax
+	mov	eax,VV
+	add	Y,eax
+	cmp	X,700
+	jb	M1
+	neg	HV
+ M1:	cmp	Y,590
+	jb	M2
+	neg	VV
+ M2:
+	mov     eax,LPS
+	mov     eax, [eax]
+	call    [eax+Surface_Flip],LPS,0,0
+EXIT_PAINT:
+ret
+;-----------------------------------------
+end Start
+
+
+

@@ -1,0 +1,52 @@
+.386
+.model flat,STDCALL
+
+extrn	SHGetSpecialFolderLocation:Proc
+extrn	MessageBoxA:Proc
+extrn	ExitProcess:Proc
+extrn	SHGetPathFromIDList:Proc
+extrn CopyFileA:Proc
+
+extrn lstrcat:Proc	; з'єднує 2 текстових рядки:
+			; call lstrcat, offset DIRECTORY_NAME, offset MY_FILE
+
+IDCANCEL                             equ 2
+
+;------------------------------------------
+.data
+  INDEX	dd	0		; індекс папки;
+  DIRECTORY_ID	dd 0		; хендл папки;
+  DIRECTORY_NAME	db 512 dup(0)	; ім’я папки;
+
+ T db ' ЛР7 Джус ПВ:',0
+ FORMAT_STR2	db "індекс: %ld каталог:  %s",0
+ pawlo	db "\pawlo222.txt",0
+pawlo1 db "pawlo222.txt",0
+
+
+
+
+
+.data?
+ TEXT_BUF	db 260 dup(?)	; загальний текстовий буфер
+
+.code
+Start:
+
+; дія
+	call SHGetSpecialFolderLocation, 0, 0, offset DIRECTORY_ID
+
+	
+	call SHGetPathFromIDList, DIRECTORY_ID,offset DIRECTORY_NAME
+call lstrcat, offset DIRECTORY_NAME, offset pawlo
+call CopyFileA,offset pawlo1 , offset DIRECTORY_NAME,0
+
+
+
+	; Вивід індексу та назви каталогу
+	call MessageBoxA,0,offset DIRECTORY_NAME,offset T,1	; MB_OKCANCEL
+
+	
+
+STOP:	call ExitProcess,0
+end Start

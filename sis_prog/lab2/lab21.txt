@@ -1,0 +1,62 @@
+.386
+	.model flat,STDCALL
+
+	extrn ExitProcess: proc
+	extrn GetSystemTime: proc
+	extrn MessageBoxA: proc
+	extrn _wsprintfA:Proc
+	
+	.data
+Time_title	db ' Л.р. №2 Джус П.В.',0
+TIME_STRING	db	2000 dup (0)
+FORMAT_STRING:
+	db '    Системний час:',0dh,0ah,0dh,0ah
+	db '                 Рiк: %ld',0dh,0ah
+	db '          Мiсяць: %ld',0dh,0ah
+	db '  День тижня: %ld',0dh,0ah
+	db '            Число: %ld',0dh,0ah
+	db '          Година: %ld',0dh,0ah
+	db '         Хвилин: %ld',0dh,0ah
+	db 0
+
+Time_struc:
+   wYear		dw 0	; Рік
+   wMonth	dw 0	; Місяць
+   wDayOfWeek	dw 0	; День тиждня
+   wDay		dw 0	; Число	
+   wHour		dw 0	; Година
+   wMinute	dw 0	; Хвилина
+   wSecond	dw 0	; Секунда
+   wMilliseconds	dw 0	; Мілісекунда
+;==============================================================
+	.code
+Start:	push	offset Time_struc
+	call	GetSystemTime 
+
+	xor eax,eax		; EAX=0
+	mov	ax,wMinute	
+	push eax  ; наступні параметри з стеку не забираються
+	mov	ax,wHour
+	push eax
+	mov	ax,wDay
+	push eax
+	mov	ax,wDayOfWeek
+	push eax
+	mov 	ax,wMonth
+	push eax
+	mov	ax,wYear
+	push eax
+	push offset FORMAT_STRING
+	push offset TIME_STRING
+	call _wsprintfA		; Вивід параметрів
+	add esp,4*8		; та очищення стеку
+push	0h
+	push	offset Time_title
+	push	offset TIME_STRING
+	push	0
+	call	MessageBoxA
+
+	push	0
+	call	ExitProcess
+	
+end   Start

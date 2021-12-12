@@ -1,0 +1,86 @@
+.model small
+.stack 100h
+
+.data
+
+fname    DB "pabloj.txt", 0
+buffer   DB 100 dup (?), '$'
+
+.code
+
+start:
+    ; set up "ds" to point to data segment
+    mov     ax,@data
+    mov     ds,ax
+    ; open file first, to get "file handle"
+    mov     ax,3D00h        ; ah = 3Dh (open file), al = 0 (read only mode)
+    lea     dx,[fname]      ; ds:dx = pointer to zero terminated file name string
+    int     21h             ; call DOS service
+    jc      fileError
+    ; ax = file handle (16b number)
+
+    ; now set the DOS internal "file pointer" to the end of opened file
+    mov     bx,ax           ; store "file handle" into bx
+    mov     ax,4202h        ; ah = 42h, al = 2 (END + cx:dx offset)
+    xor     cx,cx           ; cx = 0
+    xor     dx,dx           ; dx = 0 (cx:dx = +0 offset)
+    int     21h             ; will set the file pointer to end of file, returns dx:ax
+    jc      fileError       ; something went wrong, just exit
+    ; here dx:ax contains length of file (32b number)
+
+    ; close the file, as we will not need it any more
+    mov     cx,ax           ; store lower word of length into cx for the moment
+    mov     ah,3Eh          ; ah = 3E (close file), bx is still file handle
+    int     21h             ; close the file
+    ; ignoring any error during closing, so not testing CF here
+
+    ; BTW, int 21h modifies only the registers specified in documentation
+    ; that's why keeping length in dx:cx registers is enough, avoiding memory/stack
+
+    ; display dx:cx file length in hexa formatting to screen
+    ; (note: yes, I used dx:cx for storage, not cx:dx as offset for 42h service)
+    ; (note2: hexa formatting, because it's much easier to implement than decimal)
+    lea     di,[buffer]     ; hexa number will be written to buffer
+    mov     word ptr [di],('0' + 'x'*256)  ; with C-like "0x" prefix
+    add     di,2            ; "0x" written at start of buffer
+    mov     ax,dx
+    call    AxTo04Hex       ; upper word converted to hexa string
+    mov     ax,cx
+    call    AxTo04Hex       ; lower word converted to hexa string
+    mov     byte ptr [di],'$'   ; string terminator
+
+    ; output final string to screen
+    mov     ah,9
+    lea     dx,[buffer]
+    int     21h
+
+    ; exit to DOS with exit code 0 (OK)
+    mov     ax,4C00h
+    int     21h
+
+fileError:
+    mov     ax,4C01h        ; exit with code 1 (error happened)
+    int     21h
+
+AxTo04Hex:  ; subroutine to convert ax into four ASCII hexadecimal digits
+    ; input: ax = 16b value to convert, ds:di = buffer to write characters into
+    ; modifies: di += 4 (points beyond the converted four chars)
+    push    cx              ; save original cx to preserve it's value
+    mov     cx,4
+AxTo04Hex_singleDigitLoop:
+    rol     ax,4            ; rotate whole ax content by 4 bits "up" (ABCD -> BCDA)
+    push    ax
+    and     al,0Fh          ; keep only lowest nibble (4 bits) value (0-15)
+    add     al,'0'          ; convert it to ASCII: '0' to '9' and 6 following chars
+    cmp     al,'9'          ; if result is '0' to '9', just store it, otherwise fix
+    jbe     AxTo04Hex_notLetter
+    add     al,'A'-(10+'0') ; fix value 10+'0' into 10+'A'-10 (10-15 => 'A' to 'F')
+AxTo04Hex_notLetter:
+    mov     [di],al         ; write ASCII hexa digit (0-F) to buffer
+    inc     di
+    pop     ax              ; restore other bits of ax back for next loop
+    dec     cx              ; repeat for all four nibbles
+    jnz     AxTo04Hex_singleDigitLoop
+    pop     cx              ; restore original cx value back
+    ret                     ; ax is actually back to it's input value here :)
+end start

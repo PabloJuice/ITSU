@@ -1,0 +1,49 @@
+.386
+.model flat,stdcall
+   Extrn CreateFontIndirectA:Proc, GetDC:Proc, SelectObject:Proc, SetTextColor:Proc
+   Extrn LineTo:Proc,MoveToEx:Proc,SetBkColor:Proc, TextOutA:Proc, ReleaseDC:Proc, ExitProcess:Proc, CreatePen:Proc
+.data
+ HDC dd 0
+LOGFONTA:
+  lfHeight          DD 350 ; Висота
+  lfWidth           DD 200 ; Ширина
+  lfEscapement      DD 3600-100 ; Кут нахилу * 10
+  lfOrientation     DD  0 ; 
+  lfWeight          DD 1000 ; Жирнiсть (1000-Bold)
+  lfItalic          DB  1 ; Курсив
+  lfUnderline       DB  0 ; Пiдкреслення
+  lfStrikeOut       DB  0
+  lfCharSet         DB 1 ; 255 – шрифти DOS
+  lfOutPrecision    DB  0
+  lfClipPrecision   DB  0
+  lfQuality         DB  1
+  lfPitchAndFamily  DB  0
+  lfFaceName        DB  'Comic Sans Ms'  ; Назва фонту
+  Reserv   DB 32-6 dup(0)
+ X_coord dd 80
+ Y_coord dd 80
+ Text1 db 'ДДДжус Павло'
+ EndText1 db 0
+ RED_PEN dd ?
+ PREV_POINT dd ?,?
+.code
+Start: call GetDC,0
+         mov HDC,eax
+         call CreateFontIndirectA, offset LOGFONTA
+         call SelectObject,HDC,eax
+         call SetTextColor,HDC,0022FFh
+         call SetBkColor,HDC,00FFFFh
+         mov eax,offset EndText1
+         sub eax,offset Text1
+         call TextOutA, HDC, X_coord,Y_coord, offset Text1, eax
+         call ReleaseDC,0,HDC
+  
+  call CreatePen,0,10,0000FFh
+  mov RED_PEN,eax
+  call SelectObject,HDC,RED_PEN
+ call MoveToEx,HDC,1,5,offset PREV_POINT
+ call LineTo,HDC,255,500
+ call LineTo,HDC,500,300
+ call ReleaseDC,0,HDC
+ call ExitProcess,0
+End Start

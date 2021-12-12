@@ -1,0 +1,51 @@
+.586
+.model flat, stdcall
+
+  Extrn MessageBoxA:Proc ,GetLogicalDrives:Proc, ExitProcess:Proc
+
+.data
+
+	STRING1	db 200 dup(0)
+	ADDRESS_OF_COMMA dd 0
+	TITLE1 db "Searching for all disks"
+
+.code
+Start:
+		call GetLogicalDrives
+		
+		mov esi, offset STRING1
+		mov dl,"A"
+		mov ecx,32
+
+		
+
+	L_NEXT_DRIVE:
+		rcr eax, 1
+
+	jnc L_DRIVE_IS_ABSENT
+	
+		mov [esi],dl
+		inc esi
+
+		mov byte ptr [esi], ","
+		mov ADDRESS_OF_COMMA, esi
+		
+		inc esi
+
+		mov [esi], "  "
+		inc esi
+		inc esi
+
+	L_DRIVE_IS_ABSENT:   
+		inc dl
+		
+		dec ecx
+		jnz L_NEXT_DRIVE
+
+	
+	mov esi, ADDRESS_OF_COMMA
+	mov byte ptr [esi], "."
+	call MessageBoxA, 0, offset STRING1, offset TITLE1, 0
+	call ExitProcess, 0
+
+end Start

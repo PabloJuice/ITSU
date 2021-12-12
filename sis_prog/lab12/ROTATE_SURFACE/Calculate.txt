@@ -1,0 +1,222 @@
+; This cmponent calculates the coeficients A,B,C of quadric equations for t= 0..1:
+; X = KAx*t*t + KBx*t + KCx
+; Y = KAy*t*t + KBy*t + KCy
+
+;        (Y(1)-Y(0)) (tg(B)+tg(A)) + 2tg(A)tg(B) (X(0)-X(1))
+; KAy = _____________________________________________________
+;                            tg(B) - tg(A)
+
+;       (tg(B)-tg(A))(X(0)-X(1)) + 2KAy
+; KAx= ________________________________
+;                tg(B) + tg(A)
+
+
+;         2 (KAy - tg(B)KAx)
+; KBx = _____________________
+;           tg(B) - tg(A)
+
+
+; KBy = tg(A)KBx
+
+; KCx = X(0),  KCy = Y(0)
+
+;--------------------------------------------------------------
+.data
+ A_MIN	dd -500.0
+ A_MAX	dd 500.0
+
+.data?
+ TG_A	dd ?
+ TG_B	dd ?
+ TEMP	dd ?
+ TEMP2	dd ?
+ TG_APB	dd ?
+  KAy	dd ?
+  KAx	dd ?
+  KBy	dd ?
+  KBx	dd ?
+
+.code
+CALCULATE_ABC:	; calculates Ax,Ay,Bx,By,Cx,Cy
+	finit
+	mov eax,dword ptr [esi]		;X0	;tg(A)
+	sub eax,dword ptr [esi+8]	;XA
+	mov TEMP,eax
+	cmp eax,0
+	jnz NO_ZER1
+	fild infinity
+	jmp C_ZER1
+	NO_ZER1:
+	mov eax,dword ptr [esi+4]	;X0	;tg(A)
+	sub eax,dword ptr [esi+12]	;XA
+	cmp eax,0
+    jnz NO_ZER11
+	fild infinity
+	jmp C_ZER11
+
+    NO_ZER11:
+	fild dword ptr [esi+4]		;Y0
+	fisub dword ptr [esi+12]	;YA
+	fidiv TEMP
+	C_ZER1:
+	fld1
+	FDIVRP	; Divide ST(0) by ST(1), store result in ST(1), and pop the register stack
+   
+	fchs
+C_ZER11:
+	fstp TG_A
+
+	mov eax,dword ptr [esi+16]	;X1	;tg(B)
+	sub eax,dword ptr [esi+24]	;Xb
+	mov TEMP,eax
+	cmp eax,0
+	jnz NO_ZER2
+	fild infinity
+	jmp C_ZER2
+	NO_ZER2:
+	mov eax,dword ptr [esi+20]	;X0	;tg(A)
+	sub eax,dword ptr [esi+28]	;XA
+	cmp eax,0
+    jnz NO_ZER22
+	fild infinity
+	jmp C_ZER22
+
+   NO_ZER22:
+	fild dword ptr [esi+20]		;Y1
+	fisub dword ptr [esi+28]	;Yb
+	fidiv TEMP
+	C_ZER2:
+	fld1
+	FDIVRP	; Divide ST(0) by ST(1), store result in ST(1), and pop the register stack
+
+	fchs
+   C_ZER22:
+	fstp TG_B
+
+	fild dword ptr [esi+20]	;Y1
+	fisub dword ptr [esi+4]	;Y0
+	fstp TEMP
+
+	finit
+	fld TG_B
+	fadd TG_A
+	fst TG_APB
+ 
+	fmul TEMP
+	fstp TEMP
+
+	fild dword ptr [esi]	;X0
+	fisub dword ptr [esi+16]	;X1
+	fmul TG_B
+	fmul TG_A
+	fmul FCONST_2
+
+	fadd TEMP
+	fstp TEMP
+
+	finit
+	fld TG_B
+	fsub TG_A
+	fstp TEMP2
+
+	fld TEMP
+	fdiv TEMP2
+
+;	fcom A_MAX	; fcomp
+;	fstsw ax
+;	sahf
+ ;    jnc CORRECT_MAX1	; cf=1 if st(0)<MAX
+
+;	fcom A_MIN	; fcomp
+;	fstsw ax
+;	sahf
+ ;    jnc EX_CORRECT1	; cf=1 if st(0)<MIN
+
+;  CORRECT_MIN1:
+;	fstp KAy
+;	fld A_MIN
+;	jmp EX_CORRECT1
+
+;  CORRECT_MAX1:
+;	fstp KAy
+;	fld A_MAX
+
+; EX_CORRECT1:
+
+	fstp KAy
+;---------------
+	fild dword ptr [esi]	;X0
+	fisub dword ptr [esi+16]	;X1
+	fmul TEMP2
+	fstp TEMP
+
+	fld KAy
+	fmul FCONST_2
+	fadd TEMP
+	fdiv TG_APB
+
+;	fcom A_MAX	; fcomp
+;	fstsw ax
+;	sahf
+;     jnc CORRECT_MAX2	; cf=1 if st(0)<MAX
+
+;	fcom A_MIN	; fcomp
+;	fstsw ax
+;	sahf
+ ;    jnc EX_CORRECT2	; cf=1 if st(0)<MIN
+
+;  CORRECT_MIN2:
+;	fstp KAx
+;	fld A_MIN
+;	jmp EX_CORRECT2
+
+;  CORRECT_MAX2:
+;	fstp KAx
+;	fld A_MAX
+
+; EX_CORRECT2:
+
+	fstp KAx
+;---------------
+	finit
+	fld KAx
+	fmul TG_B
+	fstp TEMP
+	fld KAy
+	fsub TEMP
+	fmul FCONST_2
+	fdiv TEMP2
+	fstp KBx
+;---------------
+	finit
+	fld KBx
+	fmul TG_A
+	fstp KBy
+   ret
+
+;--------------------------------------------------------------
+CALC_XY:	; calculates X(t), Y(y)
+	finit
+	fld T
+	fmul T
+	fmul KAx
+	fstp TEMP
+	fld T
+	fmul KBx
+	fadd TEMP
+	fiadd dword ptr [esi]	;X0
+	fistp XT
+
+	finit
+	fld T
+	fmul T
+	fmul KAy
+	fstp TEMP
+	fld T
+	fmul KBy
+	fadd TEMP
+	fiadd dword ptr [esi+4]	;Y0
+	fistp YT
+   ret
+
+;--------------------------------------------------------

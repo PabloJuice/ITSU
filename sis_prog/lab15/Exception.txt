@@ -1,0 +1,265 @@
+; Обробка виняткових ситуацій - неіснуюча команда, ділення на нуль, запис у заборонену комірку пам'яті, відсутність сторінки пам'яті, тощо.
+
+.586
+.model flat,stdcall
+
+    Extrn ExitProcess	:Proc
+    Extrn MessageBoxA	:Proc
+    Extrn _wsprintfA	:Proc
+    Extrn CloseHandle	:Proc
+
+;------------------------------------------------------------------------------
+
+EXCEPTION_MAXIMUM_PARAMETERS    equ 15
+
+EXCEPTION_RECORD  struct
+  ExceptionCode         dd	?
+  ExceptionFlags        dd	?
+  pExceptionRecord      dd	?
+  ExceptionAddress      dd	?
+  NumberParameters      dd	?
+  ExceptionInformation  dd EXCEPTION_MAXIMUM_PARAMETERS dup(?)
+EXCEPTION_RECORD  ends
+
+
+FLOATING_SAVE_AREA struct
+  ControlWord		dd	?
+  StatusWord		dd	?
+  TagWord		dd	?
+  ErrorOffset		dd	?
+  ErrorSelector	dd	?
+  DataOffset		dd	?
+  DataSelector		dd	?
+  RegisterArea		db  80 dup(?)
+  Cr0NpxState		dd	?
+FLOATING_SAVE_AREA ends
+
+
+CONTEXT struct
+  ContextFlags		dd	?
+  iDr0		dd	?
+  iDr1		dd	?
+  iDr2		dd	?
+  iDr3		dd	?
+  iDr6		dd	?
+  iDr7		dd	?
+  FloatSave     FLOATING_SAVE_AREA <>
+  regGs		dd	?
+  regFs		dd	?
+  regEs		dd	?
+  regDs		dd	?
+  regEdi		dd	?
+  regEsi		dd	?
+  regEbx		dd	?
+  regEdx		dd	?
+  regEcx		dd	?
+  regEax		dd	?
+  regEbp		dd	?
+  regEip		dd	?
+  regCs		dd	?
+  regFlag		dd	?
+  regEsp		dd	?
+  regSs		dd	?
+  ExtendedRegisters db 512 dup(?)
+CONTEXT ends
+
+;------------------------------------------------------------------------------
+.data
+ _ESP	dd 0
+ T1	dd 0,0,0,0
+ TEXT0	db "Test",0
+ TEXT1	db "Лабораторна робота",0 
+ TEXT2	db "Встановити процедуру з адресою SEH_HANDLER як обробник виняткових ситуацій",0
+ TEXT3	db "Обробка виняткової ситуації",0
+ TEXT4	db "Вихід з виняткової ситуації",0
+ TEXT5	db "Зняти обробник виняткових ситуацій",0
+ TEXT_FORM	db "ExceptionCode = %Xh",0
+ TEXT_BUF	db 200 dup(?)
+;------------------------------------------------------------------------------
+.code
+Start:
+	call MessageBoxA,0,offset TEXT2,offset TEXT1,0
+
+;  встановити процедуру з адресою SEH_HANDLER як обробник виняткових ситуацій:
+
+	push offset SEH_HANDLER
+	push dword ptr fs:[0]
+ 
+	mov dword ptr fs:[0],esp
+
+;  створити виняткову ситуацію - запис у комірку з адресою менше 0FFFFh:
+	xor eax,eax
+	xor dword ptr [eax],eax	; STATUS_ACCESS_VIOLATION	equ 0C0000005h
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov dword ptr fs:[0],esp
+
+	div al	; STATUS_INTEGER_DIVIDE_BY_ZERO	equ 0C0000094h
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov dword ptr fs:[0],esp
+
+	int 3	; STATUS_BREAKPOINT	equ 80000003h
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov dword ptr fs:[0],esp
+
+	db 0F1h	; STATUS_SINGLE_STEP	equ 80000004h
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov dword ptr fs:[0],esp
+
+	mov ax,5050h
+	imul al
+
+	into	; STATUS_INTEGER_OVERFLOW   equ 0C0000095h
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov dword ptr fs:[0],esp
+
+	db 0Fh, 0Bh	; STATUS_ILLEGAL_INSTRUCTION	equ 0C000001Dh
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+
+;  зняти обробник виняткових ситуацій:
+
+	pop dword ptr fs:[0]
+	add esp,4
+
+	call MessageBoxA,0,offset TEXT5,offset TEXT1,0
+	call ExitProcess,0
+
+;----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+; Процедура SEH_HANDLER для обробки виняткових ситуацій
+;----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SEH_HANDLER proc EXEPTIONRECORD:dword, ESTABLISHER_FRAME:dword, CONTEXT_RECORD:dword, DISPATCHER_CONTEXT:dword
+
+	pushad
+	mov eax,EXEPTIONRECORD
+	mov eax,[eax].ExceptionCode
+	mov _ESP,esp
+	call _wsprintfA,offset TEXT_BUF,offset TEXT_FORM,eax
+	mov esp,_ESP
+	call MessageBoxA,0,offset TEXT_BUF,offset TEXT3,0
+	popad
+
+;  Встановити в EAX початок таблиці регістрів процесора
+	mov eax,CONTEXT_RECORD
+
+;  Збільшити програмний лічильник на довжину фрагмента, який треба пропустити
+	add dword ptr [eax].regEip, 8
+
+;  Нормальний вихід з обробника виняткових ситуацій: (EAX=0)
+	xor eax,eax
+	ret
+endp
+end Start
+
+;-------------------------------------------------------------
+STATUS_WAIT_0             equ 00000000h
+STATUS_ABANDONED_WAIT_0   equ 00000080h
+STATUS_USER_APC           equ 000000C0h
+STATUS_TIMEOUT            equ 00000102h
+STATUS_PENDING            equ 00000103h
+STATUS_DATATYPE_MISALIGNMENT              equ 80000002h
+ STATUS_BREAKPOINT         equ 80000003h
+ STATUS_SINGLE_STEP        equ 80000004h
+ STATUS_ACCESS_VIOLATION   equ 0C0000005h
+STATUS_IN_PAGE_ERROR      equ 0C0000006h
+STATUS_NO_MEMORY          equ 0C0000017h
+ STATUS_ILLEGAL_INSTRUCTION                equ 0C000001Dh
+STATUS_NONCONTINUABLE_EXCEPTION           equ 0C0000025h
+STATUS_INVALID_DISPOSITION                equ 0C0000026h
+STATUS_ARRAY_BOUNDS_EXCEEDED              equ 0C000008Ch
+STATUS_FLOAT_DENORMAL_OPERAND             equ 0C000008Dh
+STATUS_FLOAT_DIVIDE_BY_ZERO               equ 0C000008Eh
+STATUS_FLOAT_INEXACT_RESULT               equ 0C000008Fh
+STATUS_FLOAT_INVALID_OPERATION            equ 0C0000090h
+STATUS_FLOAT_OVERFLOW     equ 0C0000091h
+STATUS_FLOAT_STACK_CHECK  equ 0C0000092h
+STATUS_FLOAT_UNDERFLOW    equ 0C0000093h
+ STATUS_INTEGER_DIVIDE_BY_ZERO             equ 0C0000094h
+ STATUS_INTEGER_OVERFLOW   equ 0C0000095h
+STATUS_PRIVILEGED_INSTRUCTION             equ 0C0000096h
+ STATUS_STACK_OVERFLOW     equ 0C00000FDh
+STATUS_CONTROL_C_EXIT     equ 0C000013Ah
+;--------------------------------------------------------
+ Table 3-2. Exception Mnemonics, Names, and Vector Numbers
+Vector
+No. Mnemonic Name Source
+0 #DE Divide Error DIV and IDIV instructions.
+1 #DB Debug Any code or data reference.
+3 #BP Breakpoint INT 3 instruction.
+4 #OF Overflow INTO instruction.
+5 #BR BOUND Range Exceeded BOUND instruction.
+6 #UD Invalid Opcode (Undefined
+Opcode)
+UD2 instruction or reserved opcode.1
+7 #NM Device Not Available (No Math
+Coprocessor)
+Floating-point or WAIT/FWAIT
+instruction.
+8 #DF Double Fault Any instruction that can generate an
+exception, an NMI, or an INTR.
+10 #TS Invalid TSS Task switch or TSS access.
+11 #NP Segment Not Present Loading segment registers or accessing
+system segments.
+12 #SS Stack Segment Fault Stack operations and SS register loads.
+13 #GP General Protection Any memory reference and other
+protection checks.
+14 #PF Page Fault Any memory reference.
+16 #MF Floating-Point Error (Math Fault) Floating-point or WAIT/FWAIT
+instruction.
+17 #AC Alignment Check Any data reference in memory.2
+18 #MC Machine Check Model dependent.3
+19 #XF SIMD Floating-Point Numeric
+Error
+Streaming SIMD Extensions4

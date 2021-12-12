@@ -1,0 +1,133 @@
+;--------------------------------------------------------
+  Extrn GetClientRect:Proc, FillRect:Proc
+
+PAINT:
+	cmp FLG_OpenGL_Maximize,1	; skip GDI-painting in showing mode
+	jz _RET
+;--------------
+	call GetClientRect,hwnd,offset RECT
+	call FillRect,hDC2,offset RECT,wHbrBackground
+
+     call LINE, X_SYM1,Y_SYM1,X_SYM2,Y_SYM2,000h
+
+	call FIND_ESI_POINTS_ADDRESS	; show current line
+;	mov esi,offset POINTS
+	mov ecx,NUMBER_OF_POINTS
+	dec ecx
+   L_ECX1:
+	push ecx
+	call PAINT_ESI
+	add esi,16
+	pop ecx
+   LOOP L_ECX1
+
+	cmp DRAG_FLAG,0
+     jz NO_DISPLAY_DRAG1
+	call SelectObject,hDC2,HBRUSH_CURSOR_DRAG
+	mov HBRUSH,eax
+	pushad
+	mov ecx,CURSOR_X	; cursor position
+	mov edx,CURSOR_Y
+	add edx,4
+	push edx
+	add ecx,4
+	push ecx
+	sub edx,8
+	push edx
+	sub ecx,8
+	push ecx
+	call Ellipse,hDC2
+	call SelectObject,hDC2,HBRUSH
+	popad
+    NO_DISPLAY_DRAG1:
+
+;------------------------------------------------------
+	call GetDC,hwnd
+	mov hDC,eax
+	mov eax,MAXX
+	sub eax,GLwidth
+	call BitBlt, hDC,GLwidth,0,eax,GLheight,hDC2,GLwidth,0,SRCCOPY
+	mov eax,MAXY
+	sub eax,GLheight
+	call BitBlt, hDC,0,GLheight,MAXX,eax,hDC2,0,GLheight,SRCCOPY
+
+;	call BitBlt, hDC,0,0,MAXX,MAXY,hDC2,0,0,SRCCOPY
+	call ReleaseDC,hwnd,hDC
+
+_RET:
+  ret
+
+;--------------------------------------------------------
+PAINT_ESI:
+	call CALCULATE_ABC
+
+; X= KAx*t*t + KBx*t + X0
+; Y= KAy*t*t + KBy*t + Y0
+
+	call LINE, dword ptr [esi+8],dword ptr [esi+12],dword ptr [esi],dword ptr [esi+4],0ff00h
+;XA,YA,X0,Y0,0ff00h
+	call LINE, dword ptr [esi+24],dword ptr [esi+28],dword ptr [esi+16],dword ptr [esi+20],0ff00h
+;Xb,Yb,X1,Y1,0ff00h
+
+	finit
+	fldz
+	fstp T
+
+	mov eax,[esi]	;X0
+	mov XT,eax
+	mov eax,[esi+4]	;Y0
+	mov YT,eax
+
+	mov ecx,N_DT1
+   L_LINE_ESI:
+	push ecx
+
+	mov eax,XT
+	mov XTT,eax
+	mov eax,YT
+	mov YTT,eax
+
+	fld T
+	fadd DT1
+	fstp T		; T:= T+dt
+
+	call CALC_XY
+
+	call LINE, XT,YT,XTT,YTT,00D0cffh
+
+	pop ecx
+   loop L_LINE_ESI
+
+  ret
+
+;---------------------------------------
+PREPARE_POINTS:				; only in startup
+	mov ecx,NUMBER_OF_POINTS
+	mov esi,offset INIT_POINTS
+	mov edi,offset POINTS
+	shl ecx,2	; x4 coordinates
+;	mov edx,MAX_POINTS
+;	shl edx,4	; x16 bytes
+	rep movsd
+
+   ret	
+;---------------------------------------
+; find point address:
+FIND_ESI_POINTS_ADDRESS:	; -->  mov esi,offset POINTS
+	push eax
+	push edx
+	push ecx
+	mov eax,MAX_POINTS	; 25
+	mov ecx,CURRENT_ANGLE
+	dec ecx
+	mul ecx
+;	add eax,NUMBER_OF_POINTS
+	shl eax,4		;x16
+	add eax,offset POINTS
+	pop ecx
+	pop edx
+	mov esi,eax
+	pop eax
+	ret
+;---------------------------------------
+

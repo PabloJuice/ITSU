@@ -1,0 +1,11 @@
+Chess 71 False
+Running 10 True
+Bobsleigh 20 False
+Skiing 30 True
+Surfing 40 False
+Snorkeling 50 True
+Rowing 60 False
+Polo 80 True
+Cycling 90 False
+Basketball 100 True
+Baseball 122 True

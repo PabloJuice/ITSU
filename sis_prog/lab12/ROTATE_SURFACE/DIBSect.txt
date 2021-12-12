@@ -1,0 +1,43 @@
+ extrn BitBlt		:Proc
+ extrn CreateCompatibleDC:Proc
+ extrn SetPixel		:Proc
+ extrn CreateCompatibleBitmap:proc
+ extrn GetDIBits	:proc
+ extrn CreateDIBSection	:proc
+ extrn GetObjectA	:proc
+
+SRCERASE                             equ 440328h
+SRCCOPY                              equ 0CC0020h
+CREATE_SUSPENDED                     equ 4h
+;===============================================================
+
+.data
+
+ hDC2	dd ?	; backscreen
+
+BITMAPINFO_SCR:
+  biSize_S	DD	10*4	; розмiр BITMAPINFOHEADER
+  MAXX		DD	?	; ширина бiтового зображення в пiкселах
+  MAXY		DD	?	; висота бiтового зображення в пiкселах
+  PLANES_BMP_S	DW	1	; кiлькiсть площин кольору
+  BITSPI_BMP_S	DW	24	; кiлькiсть бiт на пiксел
+  biCompres_S	DD	0	; 0 = BI_RGB ; 3 = BI_bitfields
+  biSizeImage_S	DD	? ; Width_BMP*Heigth_BMP*BITSPIXEL_BMP/8 Number of bytes of bitmap data
+		DD 0,0,0,0,0	;
+
+.data?
+
+ADR_BMPSCR2	dd ?	; ADDRESS OF BITMAP
+BACKBMP2	dd ?
+
+;------------------------
+.code
+	call CreateCompatibleDC,hDC0
+	mov hDC2,eax
+
+	call CreateDIBSection,hDC0,offset BITMAPINFO_SCR,0,offset ADR_BMPSCR2, 0,0
+	mov BACKBMP2,eax
+
+	call SelectObject,hDC2,BACKBMP2
+
+;------------------------------

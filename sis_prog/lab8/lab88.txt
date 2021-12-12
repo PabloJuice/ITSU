@@ -1,0 +1,54 @@
+.386
+.model flat,STDCALL
+   extrn ExitProcess:Proc
+   extrn RegOpenKeyA: Proc
+   extrn RegEnumKeyExA:Proc
+   extrn MessageBoxA:Proc
+
+ HKEY_CURRENT_USER       equ 80000001h
+
+.data
+  TITLE1		db	'Джус ПВ ЛР8',0
+  SizeKeyClassName	dd	37	; довжина назви ключа
+  KeyClassName		db	'Software\Sony Creative Software',0
+  SizeSubKeyName		dd	260
+  SubKeyName		db	260 dup(0)
+  IndexKey		dd	0	; індекс ключа;
+  KeyHandle		dd	0	; хендл відкритого ключа;
+  KeyTime		dq	0,0,0,0
+;===========================================
+.code
+Start:	push offset KeyHandle	; адреса, де буде записаний хендл ключа;
+	push offset KeyClassName		; назва ключа;
+	push HKEY_CURRENT_USER	; стандартний розділ реєстру;
+	call RegOpenKeyA			; отримати хендл ключа;
+	or eax,eax
+	jnz STOP		; перейти на кінець, якщо ключ не існує.
+
+ NEXT_KEY:
+	mov eax,260		; Встановити максимальний розмір для назви підключа.
+	mov  SizeSubKeyName,eax
+	mov eax,37		; Встановити розмір для назви ключа.
+	mov  SizeKeyClassName,eax
+
+	push   offset KeyTime		; адреса часу створення та останньої зміни ключа;
+	push   offset SizeKeyClassName	; адреса розміру імені класу,
+	push   offset KeyClassName	; адреса назви класу ключів реєстру;
+	push   0			; зарезервовано; 
+	push   offset SizeSubKeyName	; адреса розміру імені підключа,
+	push   offset SubKeyName	;  адреса назви піключа реєстру;
+	push   IndexKey		; індекс підключа,
+	push   KeyHandle		; хендл підключа.
+	call RegEnumKeyExA		; Отримати всі підключі;
+	cmp   eax,0			; якщо eax=0, то успішне виконання.
+	jnz STOP
+
+	call MessageBoxA,0,offset SubKeyName,offset TITLE1,1	; вивести;
+	inc IndexKey		; збільшити індекс підключа.
+
+	cmp eax,1	; якщо натиснули “OK”,
+  jz NEXT_KEY	; то перейти на наступний ключ реєстру
+
+STOP: 	call ExitProcess,0
+End Start
+

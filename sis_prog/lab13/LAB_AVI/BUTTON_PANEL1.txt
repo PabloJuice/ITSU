@@ -1,0 +1,155 @@
+; Блок створення кнопок та обробка подій від кнопки
+;---------------------------------------------------
+  Extrn GetWindowLongA:Proc
+
+WM_COMMAND	equ 111h
+BS_AUTOCHECKBOX equ 3h
+BS_PUSHLIKE	equ 1000h
+BS_CENTER	equ 300h
+BST_CHECKED     equ 1
+BM_GETSTATE     equ 0F2h
+BM_CLICK        equ 0F5h
+BM_SETIMAGE     equ 0F7h
+BS_BITMAP       equ 80h
+MK_CONTROL	equ 008h	; wparam
+
+.data
+ BUTTON_CLASS	db "Button",0
+  BUTTON_X	dd 0	; координати кнопки при створенні
+  BUTTON_Y	dd 10
+  BUTTON_height	dd 35	; розмір кожної кнопки
+  BUTTON_width	dd 0
+  BUTTON_STEP	dd 45	; відстань між кнопками по вертекалі
+
+ TEXT_AVI	db "CREATE AVI",0
+
+.data?
+; прапорці станів кнопок:	; 1 - натиснута
+	FLG_BUTTON0	dd ?
+	FLG_BUTTON1	dd ?
+	FLG_BUTTON2	dd ?
+	FLG_BUTTON3	dd ?
+	FLG_BUTTON4	dd ?
+	FLG_BUTTON5	dd ?
+	FLG_BUTTON6	dd ?
+	FLG_BUTTON7	dd ?
+	FLG_BUTTON8	dd ?
+	FLG_BUTTON9	dd ?
+	FLG_BUTTON10	dd ?
+	FLG_BUTTON11	dd ?
+	FLG_BUTTON12	dd ?
+	FLG_BUTTON13	dd ?
+	FLG_BUTTON14	dd ?
+	FLG_BUTTON15	dd ?
+	FLG_BUTTON16	dd ?
+	FLG_BUTTON17	dd ?
+	FLG_BUTTON18	dd ?
+	FLG_BUTTON19	dd ?
+	FLG_BUTTON20	dd ?
+	FLG_BUTTON21	dd ?
+	FLG_BUTTON22	dd ?
+	FLG_BUTTON23	dd ?
+	FLG_BUTTON24	dd ?
+	FLG_BUTTON25	dd ?
+	FLG_BUTTON26	dd ?
+	FLG_BUTTON27	dd ?
+	FLG_BUTTON28	dd ?
+	FLG_BUTTON29	dd ?
+	FLG_BUTTON30	dd ?
+	FLG_BUTTON31	dd ?
+
+  COORD_X_CENTER_BUTTON	dd ?	; координата X центру кнопки на панелі
+  X_COORD_LBUTTON	dd ?	; координата X курсору на кнопці
+  Y_COORD_LBUTTON	dd ?	; координата Y курсору на кнопці
+  FLG_BUTTON_LEFT	dd ?	; =1, якщо кнопку натиснули зліва від її центру
+
+.code
+;----------------------------- Визначення розміру кнопки
+	mov eax,PANELWIDTH
+	sub eax,15		; кнопка має менший розмір, ніж панель кнопок
+	mov BUTTON_width,eax
+	shr eax,1
+	mov COORD_X_CENTER_BUTTON,eax	; знаходимо центр кнопки для визначення в яку сторону крутити
+
+	mov eax,Parent_width
+	sub eax,PANELWIDTH
+	mov BUTTON_X,eax
+
+; очистити прапорці натиснення кнопок
+	mov eax,offset FLG_BUTTON0-4
+     L_CLR_BUTTONS1:
+	add eax,4
+	mov dword ptr [eax],0
+	cmp eax,offset FLG_BUTTON15
+     jnz L_CLR_BUTTONS1 
+;-----------------------------
+        push    0	; CLIENTCREATESTRUCT
+        push    AppHWnd       ; hInstance
+        push    13	; ідентифікатор кнопки
+        push    PARENT_hWnd
+        push    BUTTON_height
+        push    BUTTON_width
+        push    BUTTON_Y  
+        push    BUTTON_X
+        push    WS_CHILD or WS_VISIBLE or WS_DLGFRAME or BS_CENTER ;or BS_AUTOCHECKBOX or BS_PUSHLIKE
+        push    offset TEXT_AVI   ; заголовок вікна
+        push    offset BUTTON_CLASS
+        push    0
+        call    CreateWindowExA
+
+
+ jmp EX_BUTTON_PANEL	; вихід з модуля
+
+;=============================================================================
+BUTTON_MENU:	; при натисненні визначає стан кнопок та заносить дані в масив
+; викликається з WndProc модуля Lab4
+; lparam - містить хендл кнопки яку натиснули або відтиснули
+; Молодша частина wparam містить номер кнопки (ID)
+
+;--------------------------------------------
+   GWL_STYLE     equ -16
+
+	call GetWindowLongA,lparam,GWL_STYLE
+	and eax,0ffh
+	cmp eax,BS_AUTOCHECKBOX
+   jz C_GET_STATE
+	mov eax,1
+	mov edx,wparam
+	and edx,01fh	; не більше ніж 31 кнопок
+	shl edx,2	; по 4 байти на прапорець
+
+	add edx,offset FLG_BUTTON0 ; початок масиву прапорців станів кнопок
+	and eax,1	; зберігати тільки стан натиснення
+	xor [edx],eax	; запис стану кнопки в масив
+	jmp EX_GET_STATE
+
+   C_GET_STATE:
+	call SendMessageA,lparam,BM_GETSTATE,0,0
+
+    SAVE_STATE_BUTTON:
+	mov edx,wparam
+	and edx,01fh	; не більше ніж 31 кнопок
+	shl edx,2	; по 4 байти на прапорець
+
+	add edx,offset FLG_BUTTON0 ; початок масиву прапорців станів кнопок
+	and eax,1	; зберігати тільки стан натиснення
+	mov [edx],eax	; запис стану кнопки в масив
+EX_GET_STATE:
+;-------------------------------------------------
+	cmp FLG_BUTTON13,0
+	jz NO_LOAD_FILE
+	mov FLG_BUTTON13,0
+
+   include CREATE_AVI.txt ; створює відео-ролик
+
+ NO_LOAD_FILE:
+
+;-------------------------------------------------
+
+;--------------------------------------------------
+; місце для додавання інструментів під кнопки
+
+ ret
+;-------------------------------------------------- 
+
+EX_BUTTON_PANEL:

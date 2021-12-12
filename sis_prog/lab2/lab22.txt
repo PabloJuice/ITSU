@@ -1,0 +1,24 @@
+; Програма для визначення поточної дати та місцевого часу
+.586
+.model flat,STDCALL
+
+	extrn ExitProcess:	proc, CopyFileA:proc
+
+	.data
+
+Time_title	db	'Л.р. №2 Джус П.В.',0
+FileName1	db "123.txt",0
+FileName2	db "234.txt",0
+
+;==============================================================
+	.code
+Start:    			 
+	call	CopyFileA, offset FileName1, offset FileName2, 0, offset Time_title
+
+	call	ExitProcess,0
+    
+end	Start
+
+
+
+

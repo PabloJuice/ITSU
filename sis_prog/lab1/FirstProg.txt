@@ -1,0 +1,32 @@
+.586
+.model flat,stdcall
+
+ Extrn AllocConsole:Proc,GetStdHandle:Proc, WriteConsoleA:Proc, ReadConsoleA:Proc, ExitProcess:Proc, MessageBoxA:Proc
+
+
+.data
+
+ TEXT1	db "Input: ",0
+ TEXT2	db "Джус Павло",0
+
+ STDOUT	dd ?
+ STDIN	dd ?
+ TEMP	dd ?
+
+.code
+Start:
+	call AllocConsole
+
+	call GetStdHandle,-11
+	mov STDOUT,eax
+
+	call GetStdHandle,-10
+	mov STDIN,eax
+
+	call WriteConsoleA,STDOUT,offset TEXT1,7,offset TEMP,0
+	call ReadConsoleA,STDIN,offset TEXT1,5,offset TEMP,0
+
+	call MessageBoxA,0,offset TEXT1,offset TEXT2,0
+	call ExitProcess,0
+
+ end Start

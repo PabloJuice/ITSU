@@ -1,0 +1,399 @@
+.586
+.model flat,STDCALL
+
+extrn GetModuleHandleA:Proc
+extrn ExitProcess:Proc
+extrn CreateWindowExA:Proc
+extrn RegisterClassA:Proc
+extrn GetMessageA:Proc
+extrn DispatchMessageA:Proc
+extrn TranslateMessage:Proc
+extrn LoadCursorA:Proc
+extrn LoadIconA:Proc
+extrn DefWindowProcA:Proc
+extrn DestroyWindow:Proc
+extrn MessageBoxA:Proc
+extrn MoveToEx:Proc
+extrn LineTo:Proc
+extrn CreatePen:Proc
+extrn GetDC:Proc
+extrn ReleaseDC:Proc
+extrn SelectObject:Proc
+extrn DeleteObject:proc
+extrn SetWindowPos:proc
+
+WM_PAINT                             equ 0Fh
+WM_CREATE                            equ 1h
+SRCCOPY                              equ 0CC0020h
+
+CS_VREDRAW      EQU 0001h    
+CS_HREDRAW      EQU 0002h
+CS_GLOBALCLASS  EQU 4000h    ; Global window class
+
+CW_USEDEFAULT   EQU 8000h
+
+WS_OVERLAPPED   EQU 000000000h
+WS_DLGFRAME     EQU 000400000h
+WS_BORDER       EQU 000800000h
+WS_CAPTION      EQU 000C00000h     ; WS_BORDER | WS_DLGFRAME
+WS_SYSMENU      EQU 000080000h
+WS_THICKFRAME   EQU 000040000h
+WS_MAXIMIZEBOX  EQU 000010000h
+WS_MINIMIZEBOX  EQU 000020000h
+WS_VISIBLE      EQU 010000000h
+WS_CHILD        EQU 40000000h
+
+WS_OVERLAPPEDWINDOW EQU WS_OVERLAPPED OR WS_CAPTION OR WS_SYSMENU OR WS_THICKFRAME OR WS_MINIMIZEBOX OR WS_MAXIMIZEBOX OR WS_VISIBLE
+
+MF_STRING		equ 0h
+
+WS_EX_TOPMOST		equ 8h
+
+MAX_POINTS	equ 25
+;===============================================================
+
+.data
+
+wc:     wStyle          dd CS_HREDRAW + CS_VREDRAW + CS_GLOBALCLASS   ; class style
+        wLpfnWndProc    dd offset WndProc
+        wCbClsExtra     dd 0
+        wCbWndExtra     dd 0
+        wHInstance      dd 0   ; instance handle = AppHWnd
+        wHIcon          dd 0   ; class icon handle
+        wHCursor        dd 0   ; class cursor handle
+        wHbrBackground  dd 1   ; class background brush
+        wLpszMenuName   dd 0   ; menu name in resource file
+        wLpszClassName  dd offset WndClassName   ; far ptr to class name
+
+CLIENTCREATESTRUCT	dd 0,0
+
+AppHWnd         dd 0
+
+NewHWnd         dd 0
+
+HndMenu		dd 0
+
+ATOM_CLASS	dd 0
+
+WindowCaption   db 'Parametrical Surface of Rotation',0
+
+WndClassName    db "ABBA",0
+
+STOP_CAP	db 'STOP!',0
+GDI_TXT		db 'GDI_ERROR!',0
+
+hDC0	dd	0
+hDC	dd	0
+HPEN	dd	0
+OLDLINE	dd	0,0
+
+  GLFIRST_POINT	dd 0,0	; left top point of the OpenGL window
+  FLG_OpenGL_Maximize	dd 0	; = 1 for showing mode (button "Show")
+  GL_old_width	dd 10
+  GL_old_height	dd 10
+;-----------------------------------
+
+ infinity dd 7fffffh
+
+ X_SYM1	dd 150	; The axis of symmetry:
+ X_SYM1a dd ?
+ Y_SYM1	dd 0
+ X_SYM2	dd 0
+ Y_SYM2	dd 0
+;-----------------------
+ NUMBER_OF_POINTS  dd 3
+; NUMBER_OF_ANGLES  dd 1
+ CURRENT_ANGLE	   dd 1
+;-----------------------
+INIT_POINTS:
+  X0	dd 150	; esi
+  Y0	dd 210	; esi+4
+  XA	dd 50	; esi+8
+  YA	dd 300	; esi+12
+
+  X1	dd 500	; esi+16
+  Y1	dd 220	; esi+20
+  Xb	dd 600	; esi+24
+  Yb	dd 300	; esi+28
+
+  X2	dd 750
+  Y2	dd 350
+  Xc	dd 850
+  Yc	dd 330
+
+.data?
+;-----------------------
+ POINTS:	;100 arrays coresponds to each line rotated by angle of 45 degrees
+	dd 1600*MAX_POINTS dup(?)
+;-----------------------
+
+   T	dd ?
+
+   XT	dd ?
+   YT	dd ?
+
+   XTT	dd ?
+   YTT	dd ?
+
+ RECT:
+  left	dd ?
+  top	dd ?
+  right	dd ?
+ bottom	dd ?
+
+  height  dd ?
+  width   dd ?
+
+ HPEN_BEZ dd ?
+;==========================================================================
+.code
+
+Start:	call PREPARE_DISPLAY_CURSOR
+	mov END_MAS_POINTS_QUADS,0	; empty figure
+
+	call PREPARE_POINTS
+
+	call CreatePen,0,1,0
+	mov HPEN_BEZ,eax
+
+	call CreateSolidBrush,0ffh
+	mov hBRUSH,eax
+
+;------------------------------- Maximizing the window size:
+ Extrn GetForegroundWindow:Proc, GetDeviceCaps:Proc
+
+  call GetForegroundWindow
+  mov NewHWnd,eax
+  call GetDC,NewHWnd
+  mov hDC0,eax
+  call GetDeviceCaps,hDC0,8
+  mov MAXX,eax
+  mov width,eax
+  sub eax,50
+  mov X_SYM2,eax
+  call GetDeviceCaps,hDC0,10
+  mov height,eax
+  mov MAXY,eax
+  shr eax,1
+  mov Y_SYM1,eax
+  mov Y_SYM2,eax
+
+;--------------------------------
+
+    include DIBSect.txt
+
+  call ReleaseDC,NewHWnd,hDC0
+;--------------------------------
+        push    0h
+        call    GetModuleHandleA
+        mov     AppHWnd,eax
+	mov     wHInstance, eax
+
+        push    32516
+        push    0
+        call    LoadIconA
+        mov     wHIcon, eax
+
+        push    32512
+        push    0
+        call    LoadCursorA
+        mov     wHCursor, eax
+
+        push    offset wc
+        call    RegisterClassA
+	mov	ATOM_CLASS,eax
+
+;------------------------------------------------ creating menu
+    Extrn CreateMenu:Proc,CreatePopupMenu:Proc, AppendMenuA:Proc, SetMenuItemInfoA:Proc, InsertMenuItemA:Proc
+    Extrn DrawMenuBar:Proc, ModifyMenuA:Proc
+
+ MF_GRAYED		equ 1h
+ WM_MENUSELECT		equ 11Fh
+ MF_HILITE              equ 80h
+
+ 	call	CreateMenu
+	mov	HndMenu,eax
+
+	push	offset PUNKT1
+	push	111
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT2
+	push	222
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT3
+	push	333
+	push    MF_STRING ;or MF_GRAYED
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT4
+	push	444
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT5
+	push	555
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT6
+	push	666
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+	push	offset PUNKT7
+	push	777
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+
+
+;======================================================
+        push    offset CLIENTCREATESTRUCT    ; lpParam
+        push    AppHWnd                ; hInstance
+        push    HndMenu       ; menu
+        push    0                      ; parent hwnd
+        push    height	;CW_USEDEFAULT          ; height
+        push    width	;CW_USEDEFAULT          ; width
+        push    0	;CW_USEDEFAULT          ; y
+        push    0	;CW_USEDEFAULT          ; x
+        push    WS_OVERLAPPEDWINDOW or WS_CLIPSIBLINGS or WS_CLIPCHILDREN
+        push    offset WindowCaption   ; Title string
+        push    ATOM_CLASS	;offset WndClassName    ; Class name
+        push    0	;WS_EX_TOPMOST	; extra style
+        call    CreateWindowExA
+        mov     NewHWnd,eax
+;====================================================
+
+   include WND_OPENGL.txt
+
+;----------------------------------------------------
+	call ClientToScreen,hWndGL,offset GLFIRST_POINT
+;----------------------------------------------------
+
+msg_loop:
+;-----------------------------
+   include TRACKBALL_MOUSE.txt	; перехопити повідомлення від миші та змінти напрямок обертання
+;-----------------------------
+
+	cmp msMESSAGE,WM_TIMER
+    jnz NO_TIMER1
+	call DrawGLScene
+    NO_TIMER1:
+
+        push    offset msg
+        call    TranslateMessage
+
+        push    offset msg
+        call    DispatchMessageA
+
+        jmp     msg_loop
+
+STOP:
+;	call MessageBoxA,0,offset WndClassName,offset WndClassName,0
+	call ExitProcess,0
+
+
+;==========================================================================
+WndProc          proc  hwnd:DWORD, wmsg:DWORD, wparam:DWORD, lparam:DWORD
+
+;-----------------------------
+	cmp wmsg,WM_MENUSELECT
+     JNZ NO_MENU
+
+	include MENU.txt
+
+     NO_MENU:
+;------------------------------
+
+	cmp FLG_OpenGL_Maximize,1	; skip GDI-painting in showing mode
+	jz NO_DRAW
+
+	call TEST_MSG_MOUSEMOVE	; get the cursor position and dragflag
+	cmp DRAG_FLAG,1
+	jz C_DRAG	; draging current point until left button is up
+
+     mov MIN_EAX,03fffh
+;----------------------- is symmetry corrected
+     mov ecx,offset X_SYM1
+     mov edx,offset Y_SYM1
+    call TEST_DISPLAY_MOUSE_ELLIPSE	; draw ellipse if ecx=CURSOR_X and edx=CURSOR_Y
+     mov ecx,offset X_SYM2
+     mov edx,offset Y_SYM2
+    call TEST_DISPLAY_MOUSE_ELLIPSE	; draw ellipse if ecx=CURSOR_X and edx=CURSOR_Y
+;-----------------------
+	call FIND_ESI_POINTS_ADDRESS
+;	mov esi,offset POINTS
+	mov ecx,NUMBER_OF_POINTS
+	shl ecx,1
+  L_DISPLAY_MOUSE_ELLIPSE:
+	push ecx
+        mov ecx,esi
+	add esi,4
+        mov edx,esi
+	add esi,4
+    call TEST_DISPLAY_MOUSE_ELLIPSE	; draw ellipse if ecx=CURSOR_X and edx=CURSOR_Y
+	pop ecx
+	dec ecx
+  jnz L_DISPLAY_MOUSE_ELLIPSE
+
+     cmp MIN_EAX,03fffh
+     jz C_TEST_PAINT
+
+C_DRAG:
+	call PAINT
+
+     call NEW_ELLIPSE_COORDINATES
+
+EX_MOUSE_ELL:
+;--------------------------
+C_TEST_PAINT:
+	cmp wmsg,WM_PAINT
+	jnz NO_DRAW
+
+	call PAINT
+
+NO_DRAW:
+        push    lparam
+        push    wparam
+        push    wmsg
+        push    hwnd
+        call    DefWindowProcA
+        ret
+
+WndProc          endp
+;=============================================================
+LINE proc  X_1:DWORD,Y_1:DWORD,X_2:DWORD,Y_2:DWORD,PenColor:DWORD
+	call CreatePen,0,2,PenColor
+	mov HPEN,eax
+	call SelectObject,hDC2,HPEN
+	call MoveToEx, hDC2, X_1,Y_1,offset OLDLINE
+	call LineTo, hDC2, X_2,Y_2
+	call DeleteObject,HPEN
+ret
+endp
+
+;--------------------------------------------------------
+
+   include Calculate.txt
+
+   include PAINT.txt
+
+  include mouse_control2.txt
+
+  include SAVE.txt
+
+  include CREATE_ROTATE_SURFACE.txt
+
+  include SCROLLBAR.txt
+
+End Start

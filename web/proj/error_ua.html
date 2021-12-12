@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ukr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Помилка :c </title>
+  <link rel="shortcut icon" href="img/logo_icon.ico" />
+  <link rel="stylesheet" href="styles/errorstyle.css">
+</head>
+<body>
+  <main>
+    <img src="img/logo_icon.ico">
+    <h1>Вибачте!</h1>
+    <p>
+      Ця сторінка ще в розробці!
+    </p>
+    <p id="redirect">
+      Ви будете автоматично перенаправлені на головну сторінку через 10 с.
+    </p>
+  </main>
+  <script>
+    let time = 9;
+    setInterval(
+      function(){
+        document.getElementById("redirect").innerHTML = "Ви будете автоматично перенаправлені на головну сторінку через " + time + " с.";
+        if(time == 0){
+          window.location.replace("index_ua.html");
+        }
+        time--;
+      }, 1000);
+  </script>
+</body>
+</html>

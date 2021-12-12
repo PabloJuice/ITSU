@@ -1,0 +1,43 @@
+.386
+.model flat,STDCALL
+
+   extrn ExitProcess:Proc
+   extrn MessageBoxA:Proc
+   extrn EnumWindows:Proc
+   extrn GetWindowTextA:Proc
+   extrn SendMessageA:Proc
+
+WM_CLOSE                             equ 10h
+
+.data
+ TITLE1		db	'Джус ПВ ЛР8',0
+ WND_NAME	db	200 dup(0)
+;===============================
+.code
+Start:	push 0		; додатковий параметр, що передається до CallBack – функції;
+	push offset PROG1	; адреса CallBack – функції;
+	call EnumWindows
+
+STOP:   call ExitProcess,0
+;================================
+PROG1	proc  hwnd:DWORD, wparam:DWORD	; CallBack – процедура;
+
+	push 200			; максимальна довжина назви;
+	push offset WND_NAME	; адреса назви вікна;
+	push hwnd			; хендл вікна;
+	call GetWindowTextA		; отримати назву вікна;
+
+	cmp byte ptr WND_NAME,0
+    jz NO_TEXT
+
+	call MessageBoxA,0,offset WND_NAME,offset TITLE1,41h		; вивести назву;
+
+	cmp eax,1	; ідентифікатор кнопки OK
+	jnz STOP
+
+    NO_TEXT:
+	or eax,1	; 1 –  шукати далі, 0 – закінчити перебір.
+  Ret			; Повернутися до процедури EnumWindows.
+ Endp PROG1
+End Start
+

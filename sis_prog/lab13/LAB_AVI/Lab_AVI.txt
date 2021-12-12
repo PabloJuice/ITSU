@@ -1,0 +1,192 @@
+;  Головний модуль проекта
+
+.586
+.model flat,STDCALL
+
+extrn GetModuleHandleA:Proc
+extrn ExitProcess:Proc
+extrn CreateWindowExA:Proc
+extrn RegisterClassA:Proc
+extrn GetMessageA:Proc
+extrn DispatchMessageA:Proc
+extrn TranslateMessage:Proc
+extrn LoadCursorA:Proc
+extrn LoadIconA:Proc
+extrn DefWindowProcA:Proc
+extrn DestroyWindow:Proc
+extrn MessageBoxA:Proc
+extrn MoveToEx:Proc
+extrn LineTo:Proc
+extrn CreatePen:Proc
+extrn GetDC:Proc
+extrn ReleaseDC:Proc
+extrn SelectObject:Proc
+extrn DeleteObject:proc
+extrn SetWindowPos:proc
+extrn GetTickCount:Proc
+
+CS_VREDRAW      EQU 0001h    
+CS_HREDRAW      EQU 0002h
+CS_GLOBALCLASS  EQU 4000h    ; Global window class
+
+CW_USEDEFAULT   EQU 8000h
+
+WS_OVERLAPPED   EQU 000000000h
+WS_DLGFRAME     EQU 000400000h
+WS_BORDER       EQU 000800000h
+WS_CAPTION      EQU 000C00000h     ; WS_BORDER | WS_DLGFRAME
+WS_SYSMENU      EQU 000080000h
+WS_THICKFRAME   EQU 000040000h
+WS_MAXIMIZEBOX  EQU 000010000h
+WS_MINIMIZEBOX  EQU 000020000h
+WS_VISIBLE      EQU 010000000h
+WS_CHILD        EQU 40000000h
+
+WS_OVERLAPPEDWINDOW EQU WS_OVERLAPPED OR WS_CAPTION OR WS_SYSMENU OR WS_THICKFRAME OR WS_MINIMIZEBOX OR WS_MAXIMIZEBOX OR WS_VISIBLE
+
+WM_COMMAND	equ 111h
+
+MF_STRING		equ 0h
+
+WS_EX_TOPMOST		equ 8h
+
+MAX_POINTS	equ 25
+;===============================================================
+
+.data
+WndClass:
+	wStyle          dd CS_HREDRAW + CS_VREDRAW + CS_GLOBALCLASS   ; class style
+        wLpfnWndProc    dd offset WndProc
+        wCbClsExtra     dd 0
+        wCbWndExtra     dd 0
+        wHInstance      dd 0   ; instance handle = AppHWnd
+        wHIcon          dd 0   ; class icon handle
+        wHCursor        dd 0   ; class cursor handle
+        wHbrBackground  dd 1   ; class background brush
+        wLpszMenuName   dd 0   ; menu name in resource file
+        wLpszClassName  dd offset WndClassName   ; far ptr to class name
+
+ AppHWnd	dd 0	; Хендл процесу
+
+ PARENT_hWnd	dd 0	; Хендл батьківського вікна
+
+ hCLASS	 	dd 0	; Хендл класу вікна
+
+ WindowCaption   db 'Створення графічного інтерфейсу системи',0
+
+ WndClassName    db "ABBA",0
+
+;-------------------------------------------------------------------------
+.data?
+   NEXT_TICK	dd ?	; лічильник часу для сповільнення малювання
+
+  Parent_height  dd ?	; Розміри батьківського вікна
+  Parent_width   dd ?
+.code
+
+;==========================================================================
+Start:
+;------------------ Максимізація розміру вікна
+ Extrn GetForegroundWindow:Proc, GetDeviceCaps:Proc
+
+.data?
+ FOREGROUND_hWnd dd ?	; Хендл екрану
+  hDC0	 dd	?	; Графічний контекст екрану
+   MAXX	 dd	?	; ширина екрану в пiкселах
+   MAXY	 dd	?	; висота екрану в пiкселах
+
+.code
+  call GetForegroundWindow
+  mov FOREGROUND_hWnd,eax
+  call GetDC,FOREGROUND_hWnd
+  mov hDC0,eax
+  call GetDeviceCaps,hDC0,8	; HORZRES
+  mov MAXX,eax
+  mov Parent_width,eax
+  call GetDeviceCaps,hDC0,10	; VERTRES
+  mov Parent_height,eax
+  mov MAXY,eax
+
+  call ReleaseDC,FOREGROUND_hWnd,hDC0
+;------------------------------------
+        call    GetModuleHandleA,0
+        mov     AppHWnd,eax
+
+        call    LoadIconA,0,32516
+        mov     wHIcon, eax
+
+        call    LoadCursorA,0,32512
+        mov     wHCursor, eax
+
+        call    RegisterClassA,offset WndClass
+	mov	hCLASS,eax
+
+;======================================================
+        push    0	; CLIENTCREATESTRUCT
+        push    AppHWnd       ; hInstance
+        push    0	; HndMenu
+        push    0	; parent hwnd
+        push    Parent_height	;CW_USEDEFAULT
+        push    Parent_width	;CW_USEDEFAULT
+        push    0	;CW_USEDEFAULT  Y
+        push    0	;CW_USEDEFAULT  X
+        push    WS_OVERLAPPEDWINDOW or WS_CLIPSIBLINGS or WS_CLIPCHILDREN
+        push    offset WindowCaption   ; заголовок вікна
+        push    hCLASS
+        push    0		; Розширені стилі
+        call    CreateWindowExA
+        mov     PARENT_hWnd,eax
+
+;====================================================
+
+   include WND_OPENGL.txt	; створити вікно OpenGL
+
+   include BUTTON_PANEL1.txt	; створити панель управління програмою
+
+;   include EDIT_3D_OPERATIONS.txt ; Підключити операції редагування
+
+	call GetTickCount
+	mov NEXT_TICK,eax
+msg_loop:
+;-----------------------------
+   include PEEK_MESSAGE.txt	; перехопити повідомлення від миші та змінти напрямок обертання
+;-----------------------------
+    call GetTickCount
+    cmp eax,NEXT_TICK
+ jc NO_DrawGLScene
+	add NEXT_TICK,55
+      call DrawGLScene	; побудувати 3D зображення
+ NO_DrawGLScene:
+
+        call    TranslateMessage,offset msg
+        call    DispatchMessageA,offset msg
+        jmp     msg_loop
+;-----------------------------
+STOP:	; вихід з програми
+	call ExitProcess,0
+
+;====================== Процедура головного вікна
+WndProc proc  hwnd:DWORD, wmsg:DWORD, wparam:DWORD, lparam:DWORD
+
+;-----------------------------
+	cmp wmsg,WM_COMMAND
+     JNZ NO_MENU
+
+	call BUTTON_MENU
+
+     NO_MENU:
+;------------------------------
+EX_PARENT:
+        call DefWindowProcA,hwnd,wmsg,wparam,lparam
+        ret
+
+WndProc          endp
+;=============================================================
+
+;  include PRINT_REAL.txt
+
+;----------------------------------
+
+  include ERR.txt	; видача повідомлень про помилки
+
+End Start

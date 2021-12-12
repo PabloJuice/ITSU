@@ -1,0 +1,199 @@
+.586
+.model flat,STDCALL
+
+  extrn GetModuleHandleA:Proc, ExitProcess:Proc 
+  extrn CreateWindowExA:Proc, RegisterClassA:Proc, GetDC:Proc
+  extrn DispatchMessageA:Proc, DefWindowProcA:Proc, LoadCursorA:Proc
+  extrn ChoosePixelFormat:Proc, SetPixelFormat:Proc, wglCreateContext:Proc
+  extrn wglMakeCurrent:Proc, glViewport:Proc, glMatrixMode:Proc
+  extrn glEnable:Proc, glLoadIdentity:Proc,gluPerspective:Proc,glClear:Proc
+  extrn SwapBuffers:PROC, PeekMessageA:PROC, glVertex3f:Proc, glColor3f:Proc
+  extrn glTranslatef:Proc, glRotatef:Proc, glBegin:Proc, glEnd:Proc,glFinish:Proc
+
+ WS_POPUP	 EQU 80000000h
+ WS_VISIBLE	 EQU 10000000h
+ WS_CLIPSIBLINGS EQU 04000000h
+ WS_CLIPCHILDREN EQU 02000000h
+ WM_KEYDOWN	 EQU 100h
+ PM_REMOVE	 EQU 1
+
+GL_MODELVIEW                    EQU  1700h
+GL_PROJECTION                   EQU  1701h
+GL_DEPTH_TEST                   EQU  0B71h
+GL_COLOR_BUFFER_BIT     = 00004000h
+GL_DEPTH_BUFFER_BIT     = 00000100h
+GL_TRIANGLE_FAN		equ  00006h
+GL_QUADS		equ  00007
+
+;==========================================
+.data
+p8q	dq 8.0			; 8и-байтнi константи
+p45q	dq 45.0
+p1q	dq 1.0		 
+
+p1	dd	 1.0		; 4х-байтнi константи
+m1	dd	-1.0
+m4	dd	-4.0
+
+dt1	dd  0.09	; крок повороту навколо OY
+dt2	dd -0.07	; крок повороту навколо OZ
+r1	dd  0.0		; кут повороту навколо OY
+r2	dd  0.0		; кут повороту навколо OZ
+
+TEMP	dq 0	; робоча змiнна
+
+WndClassName db 'ABBA',0;
+
+WC	  dd 0023h,offset WndProc,0,0	; структура WNDCLASS
+hInstance dd 0,0
+hCursor	  dd 0,1,0,offset WndClassName
+
+ hWnd	dd 0	; хендл вiкна
+ hDC	dd 0	; графiчний контекст вiкна
+ hRC	dd 0	; графiчний контекст OpenGL
+
+msg	dd 0
+   msMESSAGE	dd 0
+   msWPARAM	dd 0,0,0,0,0
+
+ width	dd 800		; розмiри вiкна
+ height	dd 600
+ 
+PIXELFORMATDESCRIPTOR:
+  nSize			dw	28h
+  nVersion		dw	2
+  dwFlags		dd	25h	; прапорцi для використання OpenGL
+  iPixelType		db	0
+  cColorBits		db	24	;16
+  cRedBits		db	13 dup(0)
+  cDepthBits		db	32	;16
+  cStencilBits		db	16 dup(0)
+
+;	    R    G    B 	 R    G    B	 R    G    B
+COLORS	dd 0.9, 0.1, 0.0,	0.2, 1.0, 0.0,	0.5, 0.1, 1.0
+	dd 1.0, 0.5, 0.5,	0.5, 1.0, 0.5,	0.5, 0.5, 1.0
+	dd 0.8, 0.5, 0.5,	1.0, 0.7, 0.2,	0.9, 0.5, 1.0
+	dd 0.3, 0.6, 0.7,	0.1, 0.9, 1.0,	0.7, 0.4, 0.95
+ARRAY_OF_POINTS:	; координати фiгури
+;	     X    Y    Z  	  X    Y    Z	  X    Y    Z      X   Y    Z
+	dd  0.1,  0.1, 0.0,	 0.1, 0.5, 0.0,	 0.1, 0.5, 0.15,  0.1,  0.1, 0.15
+	dd  0.1,  0.5, 0.0,	 0.3, 0.5, 0.0,	 0.3, 0.5, 0.15,  0.1,  0.5, 0.15
+	dd  0.3, 0.1, 0.0,	 0.3, 0.5, 0.0,  0.3, 0.5, 0.15,  0.3, 0.1, 0.15
+	
+	dd  0.4,  0.1, 0.0,	 0.5, 0.5, 0.0, 0.5, 0.5, 0.15,  0.4,  0.1, 0.15
+	dd  0.5,  0.5, 0.0,	 0.7, 0.1, 0.0,	 0.7, 0.1, 0.15,  0.5,  0.5, 0.15
+	;dd  0.6, 0.3, 0.0,	 0.9, 0.3, 0.0,  0.9, 0.3, 0.15,  0.6, 0.3, 0.15
+	
+	dd  0.8,  0.1, 0.0,	 0.8, 0.5, 0.0,	 0.8, 0.5, 0.15,  0.8,  0.1, 0.15
+	dd  0.8,  0.5, 0.0,	 1.1, 0.5, 0.0,	 1.1, 0.5, 0.15,  0.8,  0.5, 0.15
+	dd  0.8,  0.3, 0.0,	 1.1, 0.3, 0.0, 1.1, 0.3, 0.15,  0.8,  0.3, 0.15
+	dd  0.8,  0.3, 0.0,	 1.1, 0.3, 0.0, 1.1, 0.3, 0.15,  0.8,  0.3, 0.15
+	dd  0.8,  0.1, 0.0,	 1.1, 0.1, 0.0,  1.1, 0.1, 0.15,   0.8,  0.1, 0.15
+	dd  1.1,  0.1, 0.0,	 1.1, 0.5, 0.0,	 1.1, 0.5, 0.15,  1.1,  0.1, 0.15
+
+	dd  1.2,  0.1, 0.0,	 1.6, 0.5, 0.0, 1.6, 0.5, 0.15,  1.2,  0.1, 0.15
+	dd  1.3,  0.5, 0.0,	 1.6, 0.1, 0.0,	 1.6, 0.1, 0.15,  1.3,  0.5, 0.15
+
+	dd  1.7,  0.1, 0.0,	 1.7, 0.5, 0.0,	 1.7, 0.5, 0.15,  1.7,  0.1, 0.15
+	dd  1.7,  0.5, 0.0,	 1.9, 0.5, 0.0,	 1.9, 0.5, 0.15,  1.7,  0.5, 0.15
+	dd  1.9, 0.1, 0.0,	 1.9, 0.5, 0.0,  1.9, 0.5, 0.15,  1.9, 0.1, 0.15
+	dd  1.7,  0.1, 0.0,	 1.9, 0.1, 0.0,	 1.9, 0.1, 0.15,  1.7,  0.1, 0.15
+
+                      
+;================================================
+.code
+start:	call GetModuleHandleA,0
+	mov hInstance,eax
+	call LoadCursorA,0,7f00h
+	mov  hCursor,eax
+	call RegisterClassA, offset WC
+
+	call CreateWindowExA,0,eax,0,WS_CLIPSIBLINGS or WS_CLIPCHILDREN \
+		 or WS_VISIBLE,100,100,width,height,0,0,hInstance,0
+	mov hWnd,eax
+
+	call GetDC, hWnd
+	mov hDC,eax
+
+	call ChoosePixelFormat, hDC, offset PIXELFORMATDESCRIPTOR
+	call SetPixelFormat, hDC,eax,offset PIXELFORMATDESCRIPTOR
+	call wglCreateContext, hDC		; створити графiчний контекст OpenGL
+	mov hRC,eax
+	call wglMakeCurrent, hDC,eax	; вибрати дане вiкно для роботи
+;===========================================
+	call glEnable, GL_DEPTH_TEST	; об’єкти можуть перетинатись
+	call glViewport, 0,0,width,height	; встановити все вiкно для огляду
+	call glMatrixMode, GL_PROJECTION
+	call glLoadIdentity	; встановити початковий стан
+	fild width
+	fild height
+	fdivp
+	fstp TEMP	; TEMP = width / height 
+
+	push qword ptr p8q	; вiдстань до кiнця сцени
+	push qword ptr p1q	; вiдстань до початку сцени
+	push qword ptr TEMP	; width/height
+	push qword ptr p45q	; кут огляду
+	call gluPerspective	; встановити параметри спостереження
+
+	call glMatrixMode, GL_MODELVIEW
+;========================================
+MSG_LOOP:
+	call DrawGLScene		; пiдпрограма користувача
+	call SwapBuffers,hDC		; обмiняти вiдео-сторiнки
+	call PeekMessageA, offset msg,0,0,0,PM_REMOVE
+	or eax,eax
+	jz MSG_LOOP
+
+	.if  msMESSAGE == WM_KEYDOWN
+		cmp msWPARAM,1bh		; якщо код <ESC>, то STOP
+		jz      STOP
+	.endif
+
+	call DispatchMessageA, offset msg
+	jmp MSG_LOOP
+
+STOP:	call ExitProcess,0
+
+;========================================
+DrawGLScene proc
+	call glClear, GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT
+	call glLoadIdentity	; встановити початковий стан
+
+	call glTranslatef, 0,0,m4	; змiщаємося по OZ
+	call glRotatef, r1,0,p1,0	; повертаємо по OY
+	call glRotatef, r2,0,0,p1	; повертаємо по OZ
+	call glTranslatef, m1,0,0	; змiщаємося по OX
+
+	call glBegin, GL_QUADS	; малюємо з’єднанi в одну точку трикутники
+	mov ecx,4*18	; кiлькiсть точок в масивi
+	mov esi,offset COLORS
+	mov edi,offset ARRAY_OF_POINTS
+    L1:	pushad
+	call glColor3f,	dword ptr [esi],dword ptr [esi+4],dword ptr [esi+8]
+	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]
+	popad
+	add esi,12	; колiр кожної точки займає 12 байт
+	add edi,12	; координати кожної точки займають 12 байт
+	loop L1
+	call glEnd	; закiнчили малювати трикутники
+
+	fld r1		; змiна кута повороту по OY
+	fadd dt1
+	fstp r1
+
+	fld r2		; змiна кута повороту по OZ
+	fadd dt2
+	fstp r2
+
+	call glFinish	; закiнчити малювати сцену
+	ret
+DrawGLScene endp	
+;=================================================
+
+WndProc proc uses ebx edi esi, hwnd : DWORD, wmsg : DWORD, wparam: DWORD, lparam:DWORD
+	call DefWindowProcA,hwnd,wmsg,wparam,lparam
+	ret
+WndProc endp
+
+end start

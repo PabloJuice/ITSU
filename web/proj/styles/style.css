@@ -1,0 +1,582 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("../fonts/Roboto-Regular.ttf");
+}
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/Montserrat-Regular.ttf");
+}
+@font-face {
+  font-family: "MontserratBold";
+  src: url("../fonts/Montserrat-Bold.ttf");
+}
+@font-face {
+  font-family: "MontserratLight";
+  src: url("../fonts/Montserrat-Light.ttf");
+}
+* {
+  font-family: "Montserrat";
+  padding: 0;
+  margin: 0;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+:focus, :active {
+  outline: none;
+}
+
+a:focus, a:active {
+  outline: none;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  -ms-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+input, button, textarea {
+  font-family: "Roboto";
+}
+
+input::-ms-clear {
+  display: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+button::-moz-focus-inner {
+  padding: 0;
+  border: 0;
+}
+
+a, a:visited {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+ul li {
+  list-style: none;
+}
+
+img {
+  vertical-align: top;
+}
+
+body {
+  background: #f7f7f7;
+  width: 100%;
+}
+body .slideshow-container {
+  background-color: #ff8000;
+  z-index: 0;
+  overflow: hidden;
+}
+body .slideshow-container .topSlides {
+  display: none;
+  z-index: 1;
+}
+body .slideshow-container .topSlides div {
+  color: white;
+  width: 80%;
+  font-size: 22px;
+  z-index: 1;
+  position: absolute;
+  top: 30vw;
+  left: 10%;
+}
+body .slideshow-container .topSlides div h1 {
+  font-family: "MontserratBold";
+  font-weight: 300;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body .slideshow-container .topSlides div {
+    text-align: center;
+    left: 10%;
+    font-size: 14px;
+  }
+}
+body .slideshow-container .topSlides img {
+  filter: brightness(80%);
+  -webkit-filter: brightness(80%);
+  display: block;
+  z-index: 0;
+  height: 100%;
+  width: 100%;
+}
+body .slideshow-container .topSlides:hover img {
+  filter: brightness(87%);
+  -webkit-filter: brightness(87%);
+}
+body .slideshow-container .prev, body .slideshow-container .next {
+  cursor: pointer;
+  position: absolute;
+  top: 0;
+  height: 100vh;
+  width: 7%;
+  -webkit-user-select: none;
+          user-select: none;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body .slideshow-container .prev, body .slideshow-container .next {
+    display: none;
+  }
+}
+body .slideshow-container .next {
+  right: 0;
+}
+body .slideshow-container .prev:hover {
+  background: linear-gradient(90deg, rgba(255, 128, 0, 0.35) 0%, rgba(255, 128, 0, 0) 100%);
+}
+body .slideshow-container .next:hover {
+  background: linear-gradient(90deg, rgba(255, 128, 0, 0) 0%, rgba(255, 128, 0, 0.35) 100%);
+}
+body .slidefade {
+  -webkit-animation-name: slidefade;
+  -webkit-animation-duration: 0.5s;
+  animation-name: slidefade;
+  animation-duration: 0.5s;
+}
+@keyframes slidefade {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}
+body .sticky {
+  position: fixed;
+  top: 0;
+  margin-top: 1%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body .sticky {
+    margin-top: 3%;
+  }
+}
+body header {
+  z-index: 2;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  position: absolute;
+  width: 95%;
+  margin: 2.5%;
+  margin-top: -7%;
+  height: 12%;
+  min-height: 80px;
+  max-height: 250px;
+  background-color: black;
+  border-radius: 10px;
+  -moz-border-radius: 10px;
+  -webkit-border-radius: 10px;
+  box-shadow: 0px 3px 20px 3px rgba(0, 0, 0, 0.3);
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body header {
+    height: 5%;
+    margin-top: 2%;
+  }
+}
+body header ul {
+  z-index: 3;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+}
+body header ul li {
+  height: 100%;
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body header ul li {
+    display: none;
+  }
+}
+body header ul li a {
+  font-family: "MontserratBold";
+  color: white;
+  align-items: center;
+  text-align: center;
+  font-weight: 600;
+}
+body header ul li select {
+  font-size: 15px;
+  font-family: "MontserratBold";
+  font-weight: 600;
+  background-color: transparent;
+  color: white;
+  border: none;
+}
+body header ul li select option {
+  background-color: #ff8000;
+  border: none;
+  color: white;
+}
+body header ul #main-logo {
+  z-index: 4;
+  width: 7%;
+}
+body header ul #main-logo img {
+  width: 105px;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body header ul #main-logo {
+    margin-top: -4%;
+    display: block;
+  }
+}
+body main {
+  width: 100%;
+  padding: 3%;
+  padding-top: 5%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-color: #ffffff;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main {
+    padding-top: 20%;
+  }
+}
+body main .main-content-header {
+  margin: 5%;
+  font-family: "MontserratBold";
+  font-weight: 900;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-header {
+    text-align: center;
+  }
+}
+body main .main-content {
+  display: flex;
+  justify-content: space-around;
+  height: 10%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+}
+body main .main-content div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content div {
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10%;
+  }
+}
+body main .main-content p {
+  line-height: 175%;
+  margin: 4% 0;
+}
+body main .main-content a {
+  color: #ff8000;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content a {
+    margin-top: 5%;
+  }
+}
+body main .main-content h1 {
+  font-weight: 500;
+}
+body main .main-content-events {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-events {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+}
+body main .main-content-events .events-block {
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 10px;
+  -moz-border-radius: 10px;
+  -webkit-border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30%;
+  height: 100%;
+  background-color: #ff8000;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-events .events-block {
+    margin: 5%;
+    width: 90%;
+  }
+}
+body main .main-content-events .events-block img {
+  width: 95%;
+  filter: brightness(80%);
+  -webkit-filter: brightness(80%);
+}
+body main .main-content-events .events-block .event-date {
+  opacity: 0.7;
+  color: white;
+  padding: 1.5%;
+  align-self: flex-end;
+  position: absolute;
+}
+body main .main-content-events .events-block .event-title {
+  align-self: flex-start;
+  position: absolute;
+  color: white;
+  width: 27%;
+  padding: 1.5%;
+  padding-top: 12%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-events .events-block .event-title {
+    font-size: 14px;
+    text-align: center;
+    width: 50%;
+    padding-top: 50%;
+  }
+}
+body main .main-content-events .events-block .event-place {
+  align-self: flex-end;
+  position: absolute;
+  font-size: 13px;
+  width: 30%;
+  opacity: 0.7;
+  color: white;
+  font-weight: 600;
+  padding-left: 3.5%;
+  padding-right: 3.5%;
+  padding-top: 18%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-events .events-block .event-place {
+    padding-top: 37%;
+    text-align: center;
+    margin: 5%;
+    font-size: 12px;
+  }
+}
+body main .main-content-events .events-block:hover img {
+  filter: brightness(95%);
+  -webkit-filter: brightness(95%);
+}
+body main .main-content-publications {
+  display: flex;
+  flex-direction: row;
+  align-self: center;
+  align-content: stretch;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 90%;
+  height: 25%;
+}
+body main .main-content-publications div {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #ff8000;
+  box-shadow: 0px 0px 14px 0px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  background-color: white;
+  margin: 2%;
+  width: 20%;
+  min-width: 250px;
+  height: 50%;
+  border-radius: 10px;
+  -moz-border-radius: 10px;
+  -webkit-border-radius: 10px;
+}
+body main .main-content-publications div img {
+  min-height: 185px;
+  width: 100%;
+}
+body main .main-content-publications div p {
+  color: #ff8000;
+  font-weight: bold;
+  text-align: center;
+  padding: 4%;
+  font-size: 15px;
+  width: 100%;
+}
+body main .main-content-publications div:hover {
+  background-color: #ff8000;
+}
+body main .main-content-publications div:hover p {
+  color: white;
+}
+body main .main-content-countries {
+  padding-left: 3%;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 15%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-countries {
+    flex-direction: column;
+  }
+}
+body main .main-content-countries .countries {
+  height: 100%;
+  width: 20%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-countries .countries {
+    width: 100%;
+  }
+}
+body main .main-content-countries .countries .country {
+  margin: 5%;
+  width: 95%;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+}
+body main .main-content-countries .countries .country .c-price {
+  font-weight: 600;
+  color: #ff8000;
+}
+body main .main-content-countries .countries .country div {
+  width: 80%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+body main .main-content-countries .countries .country div .c-destination {
+  font-family: "MontserratBold";
+  font-size: 20px;
+}
+body main .main-content-countries .countries .country div .c-duration {
+  margin: 1%;
+  font-weight: 600;
+  font-size: 14px;
+  color: rgba(128, 128, 128, 0.35);
+}
+body main .main-content-countries .countries-img {
+  width: 77%;
+  padding-top: 2%;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body main .main-content-countries .countries-img {
+    display: none;
+  }
+}
+body main .main-content-countries .countries-img #country-1 {
+  margin-left: 7%;
+  width: 30%;
+  max-width: 260px;
+}
+body main .main-content-countries .countries-img #plane {
+  position: absolute;
+  transform: rotate(20deg);
+  width: 3%;
+  left: 37%;
+  margin-top: 3%;
+}
+body main .main-content-countries .countries-img .country-2 {
+  margin-left: 31%;
+  width: 30%;
+}
+body footer {
+  padding: 5%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  text-align: center;
+  align-items: center;
+  width: 100%;
+  height: 25%;
+  background-color: black;
+  color: white;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body footer {
+    justify-content: flex-start;
+    align-items: center;
+    flex-direction: column;
+  }
+}
+body footer .footer-ul {
+  width: 60%;
+  align-self: flex-end;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body footer .footer-ul {
+    margin-top: 4%;
+    align-self: center;
+    width: 100%;
+  }
+}
+body footer .footer-ul ul {
+  font-size: 12px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  text-align: center;
+  align-items: center;
+}
+body footer .footer-ul ul li {
+  margin: 0 0 1% 5%;
+}
+body footer .footer-ul ul li img {
+  width: 20%;
+  max-width: 30px;
+  min-width: 20px;
+}
+body footer .footer-ul ul li a {
+  color: white;
+}
+body footer .footer-logo {
+  display: flex;
+  justify-content: center;
+  align-self: flex-start;
+  align-items: center;
+}
+@media only screen and (min-width: 320px) and (max-width: 768px) {
+  body footer .footer-logo {
+    align-self: center;
+  }
+}
+body footer .footer-logo p {
+  width: 50%;
+}
+body footer .footer-logo img {
+  width: 10%;
+  min-width: 30px;
+}

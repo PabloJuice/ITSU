@@ -1,0 +1,127 @@
+
+.586
+.model flat,stdcall
+
+  Extrn ExitProcess:Proc, MessageBoxW:Proc, LoadLibraryA:Proc, GetProcAddress:Proc
+  Extrn StringFromCLSID:Proc, CoTaskMemFree:Proc, SetupDiGetClassDevsA:Proc
+  Extrn SetupDiEnumDeviceInterfaces:Proc, SetupDiGetDeviceInterfaceDetailA:Proc
+  Extrn SetupDiGetDeviceInterfaceDetailW:Proc, CreateFileA:Proc, GetComputerNameA:Proc
+  Extrn CloseHandle:Proc, ReadFile:Proc,SetFilePointer:Proc, GetVolumeInformationA:Proc
+
+  Extrn GetLastError	:Proc
+  Extrn FormatMessageA	:Proc
+  Extrn _wsprintfA	:Proc
+  Extrn MessageBoxA	:Proc
+  Extrn GetDC:Proc, ReleaseDC:Proc, lstrlen:Proc, TextOutA:Proc, ReadFile:Proc
+
+	DIGCF_PRESENT		equ 2
+	DIGCF_INTERFACEDEVICE	equ 10h
+	INVALID_HANDLE_VALUE	equ 0ffffffffh
+
+FORMAT_MESSAGE_ALLOCATE_BUFFER       equ 100h
+FORMAT_MESSAGE_FROM_SYSTEM           equ 1000h
+OPEN_ALWAYS                          equ 4
+
+  GENERIC_READ        equ 80000000h
+  GENERIC_WRITE       equ 40000000h
+  FILE_SHARE_READ     equ 1h
+  FILE_SHARE_WRITE    equ 2h
+  OPEN_EXISTING       equ 3
+
+;----------------------------------------------------------------------------
+.data
+
+ DeviceInfoSet	dd ?
+
+ GUID_DEVINTERFACE_DISK:
+	dd 53f56307h
+	dw 0b6bfh, 11d0h
+	db 94h, 0f2h, 00, 0a0h, 0c9h, 01eh, 0fbh, 08bh
+
+ INDEX	dd 0
+
+TEXT_ACTIVE	db "ACTIVE",0
+TEXT_NO_ACTIVE	db "NO",0
+
+.data?
+ FLASH_ID1	dd ?
+ FLASH_ID2	dd ?	; ідентифікатори флешки
+ FLASH_ID3	dd ?
+
+;----------------------	СТРУКТУРА, що передається у функцію
+ MyDeviceIntrfaceData:
+   Size1	dd ?
+   GUID1	db 16 dup(?)
+   Flag1	dd ?
+   Reserv1	dd ?
+;--------------------
+
+ flg1	dd ?
+
+;------------------- Структура містить назву файла (для роботи з пристроєм як з файлом)
+DetailData:
+    Size3	dd ?	;5-ansi, 6-unicode
+   DevicePath	db 1000 dup(?)
+;-------------------------------
+   BUF_USB	db 10000 dup(?)
+
+;======================================================
+.code
+Start:
+	call SetupDiGetClassDevsA,offset GUID_DEVINTERFACE_DISK,0,0,DIGCF_INTERFACEDEVICE
+	mov  DeviceInfoSet,eax
+	cmp eax,0
+	jz STOP
+	cmp eax,INVALID_HANDLE_VALUE
+	jz STOP
+
+	mov INDEX,0	; початкове значення змінної циклу
+
+;-----------------------------  Початок циклу перебору інтерфейсів спілкування з пристроєм
+L_DEV1:
+	mov Size1,28	; приведення структури до початкового стану
+	mov Flag1,0	; прапорець означає присутність пристрою в системі
+	mov Reserv1,0
+	mov dword ptr GUID1,0
+
+	call SetupDiEnumDeviceInterfaces,DeviceInfoSet,0,offset GUID_DEVINTERFACE_DISK, INDEX, offset MyDeviceIntrfaceData
+	cmp eax,0
+	jz STOP
+
+;----------------------------------- цикл підбору розміру, що знаходиться в змінній  Size3
+	mov Size3,0
+Find_Size3:
+	inc Size3
+
+	call SetupDiGetDeviceInterfaceDetailA,DeviceInfoSet,offset MyDeviceIntrfaceData,offset DetailData,1000,0,0
+
+	cmp eax,0
+	jnz OK1
+
+	call GetLastError
+	cmp eax,6f8h	; помилка:  розмір буферу не співпадає
+	jz Find_Size3
+
+	jmp STOP
+;----------------------------------------  Size3  підібрано вірно, продовжуємо...
+  OK1:
+;------------------------------------------------------------------- Відкритття пристрою для спілкування
+	  mov esi,offset TEXT_NO_ACTIVE
+	cmp Flag1,0
+	jz NO_ACTIVE
+	  mov esi,offset TEXT_ACTIVE
+	NO_ACTIVE:
+
+; роздруковуємо:
+
+	call MessageBoxA, 0,offset DevicePath, esi,0h
+
+;-------------------------------------------------------------------------
+  Next_File:
+	inc INDEX
+	jmp L_DEV1
+;-------------------------------------------------------------------------
+STOP:	
+	call ExitProcess,0
+
+end Start

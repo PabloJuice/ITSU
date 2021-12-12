@@ -1,0 +1,22 @@
+; Програма для визначення поточної дати та місцевого часу
+.586
+.model flat,STDCALL
+
+	extrn ExitProcess:	proc, DeleteFileA:proc
+	.data
+
+FileName1	db "234.txt",0
+
+
+;==============================================================
+	.code
+Start:    			 
+	call	DeleteFileA, offset FileName1
+
+	call	ExitProcess,0
+    
+end	Start
+
+
+
+

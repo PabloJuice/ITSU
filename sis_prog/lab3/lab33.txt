@@ -1,0 +1,103 @@
+  .386
+.model flat,STDCALL
+
+        extrn CreateFileA:Proc
+        extrn GlobalAlloc:Proc
+        extrn GlobalLock:Proc
+        extrn ReadFile:Proc
+        extrn GetLastError:Proc
+        extrn MessageBoxA:Proc
+        extrn CloseHandle:Proc
+        extrn GlobalUnlock:Proc
+        extrn GlobalFree:Proc
+        extrn ExitProcess:Proc
+	extrn GetFileSize:Proc
+	extrn GetOpenFileNameA:Proc
+	
+.data
+    title1		db 'ЛР3 Джус ПВ',0
+    openname	db 'pabloj.txt',250 dup(0)
+    hFile		dd 0
+    hMemory	dd 0      ; Хендл блоку пам’яті
+    pMemory	dd 0      ; Адреса блоку пам’яті
+    SizeRead	dd 0
+    MEMSIZE	equ 1000000h  ; 16 Mb
+    Pablo: 
+    FSize		dd 76	; довжина цiєї структури;
+    Howner	dd 0	; вказiвник вiкна-власника або 0;
+    AppHWnd	dd 0	; вказiвник модуля-власника;
+    Filters		dd offset filter_tab  ; вказiвник на перелiк типiв файлiв;
+    CustFilters	dd 0	; вказiвник на перелiк типiв файлiв якi дозволенi користувачевi;
+    CstFltSize	dd 0	; довжина буферу на який вказує CustFilters;
+    CurFilter	dd 3	; iндекс вибраного фiльтру (1,2,3,...) або 0;
+    CurFileName	dd offset openname	; вказiвник на повне iм'я файлу, наприклад, на “С:\dir1\dir2\file.ext”,0;
+    CurFlNmSize	dd 512	; довжина буферу вказаного в CurFileName;
+    CurFile	dd 0	; вказiвник на iм'я файлу з розширенням;
+    CurFlSize	dd 0	; довжина буферу вказаного в CurFile;
+    InitialDir	dd offset dir	; вказiвник на каталог файлу або 0 для даного каталога;
+    DlgTitle	dd offset titl	; вказiвник на назву вiкна;
+    Flags		dd 00h		; тип вiкна, яке вiдкриває файл (може бути 200h);
+    FileOffset	dw 0		; повертає довжину повного шляху, наприклад=13 якщо користувач ввів рядок “С:\dir1\dir2\file.asm”;
+    ExtOffset	dw 0	; змiщення вiд початку рядка до розширення (в даному прикладi =18) або 0 якщо розширення немає;
+    Extension	dd 0	; вказiвник на стандартне розширення, яке буде додано до iменi, якщо розширення немає (або 0);
+    CustData	dd 0	; вказiвник на данi для hook-процедури;
+    HookProc	dd 0	; вказiвник на hook-процедуру, якщо вона дозволена у Flags;
+    TmplateRsc	dd 0	; вказiвник на шаблон ресурсiв, якщо вiн передбачений у Flags;
+
+;                додаткові змінні до структури:
+    filter_tab	db "Графiчнi файли (*.BMP)",0h,"*.BMP",0
+		db "Текстовi файли (*.TXT)",0,"*.txt",0
+		db "Лабораторнi роботи (*.ASM)",0,"*.asm",0
+		db "Всi типи файлiв (*.*)",0h,"*.*",0,0
+    dir		db "c:\users",0
+    titl		db "Лабораторна робота № 3",0
+
+.code
+Start: 
+	call GetOpenFileNameA, offset Pablo
+	call GetFileSize, hFile, 0
+	push 0
+        push 0h          ; файл з довільними атрибутами
+        push 4h          ; відкрити існуючий або створити новий
+        push 0            ; без атрибутів безпеки
+        push 1h          ; дозволено спільний доступ по читанню
+        push 80000000h             ; читати файл
+        push offset openname	    ; адреса імені файлу
+        call CreateFileA
+	mov  hFile,eax         ; отримали хендл файлу
+	
+        push eax
+        push 2h + 40h       ; GMEM_MOVEABLE + GMEM_ZEROINIT
+        call GlobalAlloc
+	mov  hMemory,eax             ; отримали хендл блоку пам’яті
+
+        push hMemory
+        call GlobalLock                       ; розмістили блок
+	mov  pMemory,eax           ; та отримали його адресу
+
+        push 0
+        push offset SizeRead ; адреса змінної скільки байтів прочитано
+        push MEMSIZE-1     ; скільки байтів можна прочитати
+        push pMemory		; адреса початку блоку
+        push hFile                                 ; хендл файлу
+        call ReadFile		; функція читання файлу
+
+        push 0
+        push offset title1
+        push pMemory            ; вивід блоку пам’яті на екран
+        push 0
+        call MessageBoxA
+
+        push hFile
+        call CloseHandle           ; закрити файл        push hMemory
+        call GlobalUnlock         ; розблокувати блок пам’яті
+
+        push hMemory
+        call GlobalFree             ; звільнити блок пам’яті
+
+	
+
+        push 0
+        call ExitProcess             ; повернення у Windows
+
+end Start

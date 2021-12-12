@@ -1,0 +1,272 @@
+; підпрограми для роботи з малюнками
+; LOAD_TEXTURE - завантажує малюнок та робить з нього поточну текстуру
+;---------------------------------------------------------------------
+
+  extrn LoadImageA:Proc, GetObjectA:Proc, gluBuild2DMipmaps:Proc
+  extrn glDeleteTextures:Proc, glGenTextures:Proc
+  extrn glBindTexture:Proc, CreateThread:Proc, lstrcmp:Proc
+  Extrn FindClose:Proc,FindFirstFileA:Proc,FindNextFileA:Proc
+
+  GL_BGR_EXT            equ 080E0h
+  LR_LOADFROMFILE	equ 10h
+  LR_DEFAULTSIZE	equ 40h
+  LR_CREATEDIBSECTION 	equ 2000h
+  GL_TEXTURE_2D         equ 00DE1h
+  GL_UNSIGNED_BYTE      equ 01401h
+  GL_BGRA_EXT		equ 080E1h
+
+  MAX_IMAGES	EQU 300 ; максимальна кількість зображень
+
+.DATA
+  TEX_NUMBER	dd 0		; номер текстури
+  FLG_PREPARE_FIND_TEXTURE dd 0 ; чи робився пошук текстур спочатку? 
+  FLG_PREPARE_CREATE_TEXTURE dd 0 ; чи робилося очищення пам'яті текстур?
+  ADR_ERR_JPG	dd offset SearchName ; адреса назви помилкового зображення
+  FLG_NO_FILES	dd 0	; 1= більше файлів текстур немає
+
+;------------------------------------------------------
+.DATA?
+   BUF2	dd  40 dup(?)
+   HImg		dd ?
+   ADR_IMG1	dd ?
+ TEXTURES dd MAX_IMAGES dup(?)
+
+;----------------------------------------------------------
+.code
+FIND_TEXTURE:	; Завантажити наступну текстуру з поточної папаки
+	cmp FLG_PREPARE_FIND_TEXTURE,0
+    jnz L_FIND_TEX1	; якщо масив текстур ще не заповнено
+;-------------------------
+  L_FIND_TEX2:
+	mov eax,MAX_ADR_TEXTURES
+	sub eax,offset TEXTURES
+	or eax,FLG_PREPARE_FIND_TEXTURE
+	cmp eax,1
+	jz ERR_IMG
+	call FindClose,HndFindFileBMP
+	call FindFirstFileA,offset SearchName,offset FindFileData
+	mov HndFindFileBMP,eax
+	mov FLG_PREPARE_FIND_TEXTURE,1
+     jmp C_FIND_TEX3
+
+    L_FIND_TEX1:
+	call FindNextFileA,HndFindFileBMP,offset FindFileData
+	cmp eax,0
+  jnz C_FIND_TEX3
+	mov FLG_NO_FILES,1	; більше файлів немає
+
+  jmp L_FIND_TEX2	; малюнків більше немає
+
+
+     C_FIND_TEX3:
+	call lstrcmp,offset CUR_TEX_NAME,offset cFileName
+	cmp eax,0
+     jz L_FIND_TEX1
+	
+;------------------------------
+.data
+  MAX_ADR_TEXTURES	dd offset TEXTURES ; поточна текстура для завантаження
+  SearchName	db "*.*",0	; пошук малюнків
+  TEX_SIZE	dd  256  ; розмір текстур
+  ALPHA_BLEND	dd  128	; maximum 255
+
+.data?
+  HndFindFileBMP	dd ?
+  FindFileData	db 11*4 dup(?)
+  cFileName	db 260+14 dup(?)
+  PRINT_BUF	db 260 dup(?)
+
+.code
+;-----------------------------------------------
+
+     call LOAD_JPG,offset cFileName	; Ім'я файлу
+
+ 	cmp FLG_IMG_READY,0	; малюнок не завантажено
+	jz L_FIND_TEX1		; тоді беремо іншу картинку
+
+;-------------------------------
+ CREATE_NEXT_TEXTURE:
+	cmp FLG_PREPARE_CREATE_TEXTURE,0
+      jnz C_CREATE_TEX1	; якщо масив текстур ще не заповнено
+	; спочатку необхідно виділити пам'ять для текстур:
+	call glGenTextures,MAX_IMAGES,offset TEXTURES
+	mov FLG_PREPARE_CREATE_TEXTURE,1
+      C_CREATE_TEX1:
+	mov eax,MAX_ADR_TEXTURES
+	add MAX_ADR_TEXTURES,4
+	inc TEX_NUMBER
+	mov eax,[eax]
+	call glBindTexture,GL_TEXTURE_2D,eax
+	call gluBuild2DMipmaps, GL_TEXTURE_2D, 3, TEX_SIZE, TEX_SIZE, GL_BGR_EXT, GL_UNSIGNED_BYTE, ADR_BMP_TEXTURE
+     ret
+
+;--------------------------------------------------
+ERR_IMG:	call MessageBoxA,0,offset TEXT_ERR_IMG, ADR_ERR_JPG,10h
+	jmp STOP
+
+TEXT_ERR_IMG	db "Picture is not found!",0
+
+;======================================================
+.data
+ BITMAPINFOHEADER:
+  biSize	DD	10*4	; розмiр BITMAPINFOHEADER
+  Tex_Width	DD	0	; ширина бiтового зображення в пiкселах
+  Tex_Height	DD	0	; висота бiтового зображення в пiкселах
+  PLANES_BMP	DW	1	; кiлькiсть площин кольору
+  BITSPIXEL_BMP	DW	24	; кiлькiсть бiт на пiксел
+  biCompression	DD	0	; 0 = BI_RGB ; 3 = BI_bitfields
+  biSizeImage	DD	0	; Width_BMP*Heigth_BMP*BITSPIXEL_BMP/8
+  biXPelsPerMeter DD	0	; роздiльна здатнiсть по горизонталi
+  biYPelsPerMeter DD	0	; роздiльна здатнiсть по вертикалi
+  biClrUsed	DD	0
+  biClrImportant DD	0,0
+
+.data?
+  hDC1	dd ?
+  hDC_C	dd ?
+  hIMG_JPG dd ? ; хендл JPG зображення
+  ADR_BMP_TEXTURE	dd ?
+
+.code
+  Extrn CreateCompatibleDC:Proc, CreateDIBSection:Proc
+;--------------------------------------------
+PREPARE_LOAD_JPG:		; підготовка LOAD_JPG
+	mov eax,TEX_SIZE
+	mov Tex_Width,eax
+	mov Tex_Height,eax
+	mul Tex_Height
+	shr eax,3	; /8
+	mov biSizeImage,eax
+
+	call GetDC,0	; створюємо невидиму копію контексту екрану TEX_SIZExTEX_SIZE
+	mov hDC1,eax
+	call CreateCompatibleDC,hDC1
+	mov hDC_C,eax
+	call CreateDIBSection,hDC1,offset BITMAPINFOHEADER,0,offset ADR_BMP_TEXTURE, 0,0
+	mov hIMG_JPG,eax
+	call SelectObject,hDC_C,eax
+	call ReleaseDC,0,hDC1
+	mov FLG_PREPARE_LOAD_JPG,1
+	ret
+
+;--------------------------------------------
+LOAD_JPG Proc ADR_FILE_JPG:dword
+
+; ADR_FILE_JPG - адреса Імені файлу, hDC_C - сумісний графічний контекст виводу
+ extrn LoadLibraryA:Proc, GetProcAddress:Proc, GlobalAlloc:Proc, GlobalLock:Proc
+ extrn GlobalUnlock:Proc, GetDeviceCaps:Proc, GetClientRect:Proc, ReadFile:Proc
+ extrn CreateFileA:Proc, GetFileSize:Proc, CloseHandle:Proc, MulDiv:Proc
+ extrn GlobalFree:Proc
+ extrn CreateStreamOnHGlobal:Proc, OleLoadPicture:Proc
+
+.data
+   HMWidth	dd	0
+   HMHeight	dd	0
+
+  HFile		dd	0
+  File_Size	dd	0
+  HGlobal	dd	0
+  NUM_READ	dd	0
+  PSTM		dd	0
+
+; iдентифiкатор iнтерфейсу IPicture, який взятий з реєстру:
+  IID_IPicture	dd	7bf80980h		; HKEY_CLASSES_ROOT\Interface\
+		dw	0bf32h, 101ah		; {7BF80980-BF32-101A-8BBB-00AA00300CAB}
+		db	8bh, 0bbh
+		db	00h, 0aah, 00h, 30h, 0ch, 0abh
+
+  GPICTURE	dd	0
+
+ FLG_PREPARE_LOAD_JPG	dd 0	; Чи виконана підготовка JPG ?
+
+  FLG_IMG_READY  dd ?	; чи завантажено малюнок 
+
+.code
+	mov eax,ADR_FILE_JPG
+	mov ADR_ERR_JPG,eax	; зберегти ім'я для видачі помилки
+	cmp FLG_PREPARE_LOAD_JPG,1 ; чи виконані підготовчі дії?
+    jz JPG_OK
+	pushad
+	call PREPARE_LOAD_JPG
+	popad
+    JPG_OK:
+ 	mov FLG_IMG_READY,0	; малюнок не завантажено
+
+	call CreateFileA, ADR_FILE_JPG, 80000000h,0,0,3,0,0
+	cmp eax,-1
+  jz ERR_FILE_JPG
+	mov HFile,eax
+
+	call GetFileSize,HFile,0	; отримати довжину файлу
+	mov  File_Size,eax
+
+	call GlobalAlloc, 2, File_Size
+	mov  HGlobal,eax
+	call GlobalLock,eax
+	call ReadFile, HFile, eax, File_Size, offset NUM_READ,0
+	call GlobalUnlock, HGlobal
+	call CloseHandle, HFile
+
+	call CreateStreamOnHGlobal, HGlobal, 1, offset PSTM
+	mov eax,PSTM	; завантажити файл у потiк
+	or eax,eax
+ jz ERR_FILE_JPG2
+
+	call OleLoadPicture,PSTM,File_Size,0,offset IID_IPicture,offset GPICTURE
+	or eax,eax	; скористатись інтерфейсом об'єкт IPicture
+ jnz ERR_FILE_JPG2
+
+	mov edx,PSTM	; coinvoke PSTM,IUnknown,Release
+	mov edx,[edx]
+	push PSTM
+	call dword ptr [edx+8h]
+
+	mov edx, GPICTURE	; використання методу OLE
+	mov edx, [edx]		; IPicture::get_Width (18h)
+	push offset HMWidth
+	push GPICTURE
+	call Dword ptr [edx+18h]
+
+	mov edx, GPICTURE	; використання методу OLE
+	mov edx, [edx]		; IPicture::get_Height (1Ch)
+	push offset HMHeight
+	push GPICTURE
+	call Dword ptr [edx+1Ch]
+
+	mov eax,HMWidth
+	cmp eax,HMHeight
+     jc MIN_WIDTH
+	mov eax,HMHeight
+	mov HMWidth,eax
+	jmp MIN_HEIGHT
+
+     MIN_WIDTH:
+	mov eax,HMWidth
+	mov HMHeight,eax
+     MIN_HEIGHT:
+
+	mov edx, GPICTURE	; використання методу OLE
+	mov edx, [edx]		; IPicture::Render (20h)
+	mov eax, HMHeight
+	neg eax
+	call [edx+20h],GPICTURE,hDC_C,0,0,TEX_SIZE,TEX_SIZE,0,HMHeight,HMWidth,eax,0
+
+	mov edx, GPICTURE	; використання методу OLE
+	mov edx,[edx]
+	push GPICTURE
+	call dword ptr [edx+8h]
+
+ 	mov FLG_IMG_READY,1	; малюнок успішно завантажено
+	ret
+
+ ERR_FILE_JPG2:
+	mov edx,PSTM	; coinvoke PSTM,IUnknown,Release
+	mov edx,[edx]
+	push PSTM
+	call dword ptr [edx+8h]
+
+ ERR_FILE_JPG:
+	call CloseHandle, HFile
+   RET
+endp
+

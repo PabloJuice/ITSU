@@ -1,0 +1,56 @@
+; Даний блок створює невидимий графічний контекст та переключає всі команди OpenGL на нього
+;------------------------------------------------------------------------------------------
+  extrn	CreateDIBSection:Proc, DrawDibClose:Proc, DrawDibDraw:Proc, DrawDibOpen:Proc, InvalidateRect:Proc
+
+.data
+PIXELFORMATDESCRIPTOR_BMP:
+  nSize_BMP		dw	28h
+  nVersion_BMP		dw	2
+  dwFlagsGL_BMP		dd	28h ;PFD_SUPPORT_OPENGL or PFD_DRAW_TO_BITMAP
+  iPixelType_BMP	db	0
+  cColorBits_BMP	db	24;32	;24	;16
+  cRedBits_BMP		db	13 dup(0)
+  cDepthBits_BMP	db	32	;16
+  cStencilBits_BMP	db	16 dup(0)
+
+SCENE_BITMAPINFOHEADER:
+  biSize1	DD	10*4	; розмiр BITMAPINFOHEADER
+ FrameWidth	dd 0		; розмiри вiкна = розмір BMP
+ FrameHeight	dd 0
+  PLANES_BMP1	DW	1	; кiлькiсть площин кольору
+  BITSPIXEL_BMP1 DW	24;32	; кiлькiсть бiт на пiксел
+  biCompression1 DD	0	; 0 = BI_RGB ; 3 = BI_bitfields
+  biSizeImageFrame	DD	0	; Width_BMP*Heigth_BMP*BITSPIXEL_BMP/8 Number of bytes of bitmap data
+  biXPelsPerMeter1 DD	0	; роздiльча здатнiсть по горизонталi
+  biYPelsPerMeter1 DD	0	; роздiльча здатнiсть по вертикалi
+  biClrUsed1	DD	0
+  biClrImportant1 DD	0,0
+
+.data?
+   ADR_BMPSCR1	dd ?
+   GL_BMP_hDC	dd ?   
+   hSECTION	dd ?
+   DrawDibDC	dd ?
+   BMP_hRC	dd ?
+
+.code
+	call GetDC,0
+	mov hDC1,eax
+	call CreateCompatibleDC,hDC1 
+	mov GL_BMP_hDC,eax   ; Створили невидимий графічний контекст для перетворення 3D-сцени у bitmap
+     ; створили bitmap з прямим доступом до даних (DIB-Section):
+	call CreateDIBSection,hDC1,offset SCENE_BITMAPINFOHEADER,0,offset ADR_BMPSCR1, 0,0
+	mov hSECTION,eax
+	call SelectObject,GL_BMP_hDC,eax ; закріпили створений bitmap за невидимим графічним контекстом
+
+; Підготувалися до виводу 3D-зображення у bitmap:
+	call ChoosePixelFormat, GL_BMP_hDC, offset PIXELFORMATDESCRIPTOR_BMP
+	call SetPixelFormat, GL_BMP_hDC,eax,offset PIXELFORMATDESCRIPTOR_BMP
+	call wglCreateContext, GL_BMP_hDC		; створити графiчний контекст OpenGL
+	mov BMP_hRC,eax
+	call wglMakeCurrent, GL_BMP_hDC,eax	; вибрати для роботи невидимий графічний контекст
+
+;	call ReleaseDC,0,hDC1
+
+	call DrawDibOpen  ; підготувалися до виводу bitmap
+	mov DrawDibDC,eax

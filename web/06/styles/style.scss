@@ -1,0 +1,156 @@
+@import "variables.scss";
+@import "fonts.scss";
+@import "mixins.scss";
+@import "obnullator.scss";
+
+header{
+	@include center;
+	@include flex();
+	justify-content: flex-start;
+	background-image: url('../img/headerbg.svg');
+	background-size: 100%;
+	background-repeat: no-repeat;
+	color: $headerTextColor;
+	height: 130vh;
+	width: 100%;
+	*{
+		margin-top: 2%;
+	}
+	.header-logo{
+		width: 20vh;
+		*{
+			fill: #ffffff !important;
+		}
+	}
+	h1{
+		font-size: $font-size*1.8;
+		margin-top: 4%;
+	}
+	h2{
+		font-size: $font-size*1.2;
+		font-weight: 400;
+	}
+	.buy-holder{
+		@include center;
+		width: 40%;
+		height: 4vh;
+		@include flex(row);
+		padding-left: 2%;
+		input{
+			padding: 3%;
+			width: 60%;
+			text-align: left;
+			border:1px solid #ffffff;
+			border-radius:5px;
+
+		}
+		.buy-button{
+			font-size: $font-size*0.5;
+			margin-left: 5%;
+			background-color:#212021;
+			border:1px solid #000000;
+			border-radius:5px;
+			width: 37%;
+			padding: 3% 5% 3% 5%;
+			cursor: pointer;
+			color: $headerTextColor;
+		}
+	}
+	p{
+		font-size: $font-size*0.4;
+		font-weight: 300;
+	}
+	img{
+		width: 55vw;
+	}
+}
+#clock{
+	margin-top: 3%;
+	font-weight: 700;
+	font-size: 15px;
+}
+main{
+	@include center;
+	width: 100%;
+	justify-content: flex-start;
+
+	.features-div{
+		justify-content: space-evenly;
+		align-items: baseline;
+		padding-top: 2%;
+		@include flex(row);
+		div{
+			@include center;
+			width: 15%;
+			flex-direction: column;
+
+			p, b{
+				font-size: $font-size*0.5;
+				padding: 2%;
+				margin-top: 5%;
+				text-align: center;
+				width: 95%;
+			}
+			div{
+				width: 60%;
+				margin: 5%;
+				margin-left: 20%;
+
+				.features-icon{
+					width: 50%;
+				}
+			}
+
+		}
+	}
+	.company-icons{
+		margin-top: 5%;
+		width: 100%;
+		padding: 5%;
+		hr{
+			margin-left: 20%;
+			width: 60%;
+		}
+		img{
+
+			margin-top: 3%;
+			margin-bottom: 3%;
+			width: 7%;
+		}
+	}
+}
+footer{
+	@include center;
+	margin-top: 5%;
+	@include flex();
+	justify-content:space-around;
+	p{
+		padding: 1%;
+		width: 40%;
+		font-size: $font-size/1.4;
+	}
+	b{
+		padding: 1%;
+		color: #34363b;
+		font-size: $font-size/2;
+	}
+	.buy-button{
+		
+		margin-top: 3%;
+		font-size: $font-size*0.5;
+		font-weight: 900;
+		background-color:$mainColor;
+		border:1px solid $mainColor;
+		border-radius:5px;
+		width: 12%;
+		padding: 1%;
+		color: $headerTextColor;
+	}
+	a{
+		margin-top: 5%;
+		width: 100%;
+		padding: 2%;
+		text-align: right;
+		font-size: $font-size/2;
+	}
+}

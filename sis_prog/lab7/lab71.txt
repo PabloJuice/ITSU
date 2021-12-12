@@ -1,0 +1,58 @@
+.386
+.model flat,STDCALL
+
+extrn	SHGetSpecialFolderLocation:Proc
+extrn	MessageBoxA:Proc
+extrn	ExitProcess:Proc
+extrn	SHGetPathFromIDList:Proc
+
+IDCANCEL                             equ 2
+
+;------------------------------------------
+.data
+  INDEX	dd	0		; індекс папки;
+  DIRECTORY_ID	dd 0		; хендл папки;
+  DIRECTORY_NAME	db 512 dup(0)	; ім’я папки;
+
+ T db ' ЛР7 ДжусПВ каталог:',0
+ FORMAT_STR2	db "індекс: %ld каталог:  %s",0
+
+.data?
+ TEXT_BUF	db 260 dup(?)	; загальний текстовий буфер
+
+.code
+Start:
+; чи визначити папку за даним індексом?
+	cmp INDEX,65		; якщо індекс  перевищує 64,
+	jnc STOP			; то закінчити пошук.
+; дія
+	call SHGetSpecialFolderLocation, 0, INDEX, offset DIRECTORY_ID
+
+	or eax,eax			; Якщо папка з даним індексом не існує,
+	jnz Start			; то продовжувати пошук.
+
+	call SHGetPathFromIDList, DIRECTORY_ID,offset DIRECTORY_NAME
+
+;-----------------------------------------------------------
+; надрукувати індекс та назву спеціалізованої папки:
+
+ extrn _wsprintfA:Proc
+
+	call _wsprintfA, offset TEXT_BUF, offset FORMAT_STR2,INDEX,offset DIRECTORY_NAME
+	add esp,16
+
+;-----------------------------------------------------------
+
+	; Вивід індексу та назви каталогу
+	call MessageBoxA,0,offset TEXT_BUF,offset T,1	; MB_OKCANCEL
+
+	cmp eax,IDCANCEL	; якщо натиснули кнопку CANCEL,
+	jz  STOP		; то перехід на кінець алгоритму
+
+; наступний елемент
+	inc INDEX
+
+	jmp Start	; перехід на початок циклу
+
+STOP:	call ExitProcess,0
+end Start

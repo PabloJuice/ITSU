@@ -1,0 +1,39 @@
+
+        extrn CreateFileA:Proc
+        extrn GlobalAlloc:Proc
+        extrn GlobalLock:Proc
+        extrn WriteFile:Proc
+        extrn GetLastError:Proc
+        extrn CloseHandle:Proc
+        extrn GlobalUnlock:Proc
+        extrn GlobalFree:Proc
+
+CREATE_ALWAYS                        equ 2
+
+.data
+    openname	db 'pablo.jpg',250 dup(0)
+    hFile		dd 0
+    SizeCompleted	dd 0	; скільки байтів реально записано
+
+.code
+	push 0
+        push 0h          ; файл з довільними атрибутами
+        push 4h          ; відкрити існуючий або створити новий
+        push 0           ; без атрибутів безпеки
+        push 1h          ; дозволено спільний доступ по читанню
+        push CREATE_ALWAYS          ; Створювати файл завжди
+        push offset openname	    ; адреса імені файлу
+        call CreateFileA
+	mov  hFile,eax         ; отримали хендл файлу
+	
+
+        push 0
+        push offset SizeCompleted ; адреса змінної скільки байтів реально записано
+        push BufLen	    	; скільки байтів необхідно записати
+        push offset BUFFER	; адреса початку блоку
+        push hFile              ; хендл файлу
+        call WriteFile		; функція запису файла
+
+        push hFile
+        call CloseHandle           ; закрити файл
+

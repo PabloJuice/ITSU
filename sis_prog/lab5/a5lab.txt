@@ -1,0 +1,136 @@
+.586
+.model flat,STDCALL
+  extrn InitCommonControls:Proc, GetModuleHandleA:Proc, ExitProcess:Proc 
+  extrn CreateWindowExA:Proc, RegisterClassA:Proc, GetMessageA:Proc
+  extrn DispatchMessageA:Proc, DefWindowProcA:Proc, _wsprintfA:Proc
+  extrn GetDC:Proc, SelectObject:Proc, ReleaseDC:Proc, CreateSolidBrush:Proc
+  extrn Rectangle:Proc, TextOutA:Proc,SendMessageA:Proc, lstrlen:Proc, Ellipse:Proc
+  extrn TranslateMessage:Proc, SendMessageA:Proc, inet_addr:Proc
+
+ WS_CHILD	EQU 40000000h
+ WS_POPUP	EQU 80000000h
+ WS_VISIBLE	EQU 010000000h
+ WS_DLGFRAME	EQU 400000h
+ WM_KEYDOWN	EQU 100h
+ TBS_TOP	EQU 0004h
+ WM_NOTIFY	EQU 4Eh
+ WM_HSCROLL	EQU 114h
+ TBM_SETRANGE	EQU 1030
+ WM_GETTEXT     equ 0Dh
+ WM_PAINT       equ 0Fh
+;=====================================================
+.data
+ WC dd 4003h,offset WndProc,5 dup(0),1,0,offset WndClassName
+msg	dd 0
+   msMESSAGE	dd 0
+   msWPARAM	dd 0,0,0,0,0
+AppHWnd	dd 0
+MainHWnd	dd 0
+CHILD_CLASS_NAME	db 'msctls_trackbar32',0
+WndClassName    db "ABBA",0
+COLOR	dd	0
+Brush	dd	0
+HDC	dd	0
+TRACK_ID	dd	0
+TRACK_ID1	dd	0
+FORMAT	db	'Color = %X',0
+STR1	db 'Джус 5', 0
+PRINT_BUF	db 20 dup(0)
+
+CHILD_CLASS_EDIT	db "Edit",0
+hEDIT			dd ?
+
+.data?
+ TEXT_BUF	db 260 dup(?)
+
+;=======================================================
+.code
+Start: call    GetModuleHandleA,0     ; отримати хендл програми для створення вікна;
+         mov   AppHWnd,eax
+         call  RegisterClassA,offset WC      ; зареєструвати новий клас вікон;
+         call CreateWindowExA,0,eax,offset STR1, WS_VISIBLE or WS_DLGFRAME, 100,50,400,410,0,0,AppHWnd,0
+ mov  MainHWnd,eax
+call CreateWindowExA,0,offset CHILD_CLASS_NAME,0,WS_CHILD or WS_VISIBLE or TBS_TOP, 5,360,380,35,MainHWnd,2,AppHWnd,0
+call  SendMessageA,eax,TBM_SETRANGE,1,255*10000h
+call CreateWindowExA,0,offset CHILD_CLASS_NAME,0,WS_CHILD or WS_VISIBLE or TBS_TOP, 5,320,380,35,MainHWnd,1,AppHWnd,0
+call  SendMessageA,eax,TBM_SETRANGE,1,255*10000h
+call CreateWindowExA,0,offset CHILD_CLASS_NAME,0,WS_CHILD or WS_VISIBLE or TBS_TOP, 5,280,380,35,MainHWnd,0,AppHWnd,0;call  SendMessageA,eax,TBM_SETRANGE,1,255*10000h
+
+;call CreateWindowExA,0,offset CHILD_CLASS_EDIT,0,WS_CHILD or WS_VISIBLE or TBS_TOP, 100,250,280,25,MainHWnd,0,AppHWnd,0
+;mov hEDIT,eax
+
+;==========================================================
+msg_loop:  call GetMessageA,offset msg,MainHWnd,0,0
+                   cmp msMESSAGE,WM_KEYDOWN	; Повідомлення клавіатури
+                   jnz  CONTINUE_LOOP
+                   cmp msWPARAM,1bh		; якщо код <ESC>, то STOP
+                   jz STOP
+                   cmp msWPARAM,13		; якщо код <Enter>, то READ_COLOR
+                   jz READ_COLOR
+CONTINUE_LOOP:
+	call TranslateMessage,offset msg
+        Call DispatchMessageA,offset msg
+        Jmp msg_loop
+
+STOP:        call ExitProcess,0
+;==========================================================
+WndProc proc  hwnd:DWORD, wmsg:DWORD, wparam:DWORD, lparam:DWORD
+		cmp wmsg,WM_PAINT
+		jz PAINT1
+
+              Cmp wmsg,WM_NOTIFY	; WM_NOTIFY надходить від кожного
+              Jnz NO_NOTIFY	; дочірнього вікна, при тому
+              Mov eax,wparam	; wparam містить ідентифікатор
+              Xchg eax,TRACK_ID1	; дочірнього вікна від якого надійшло
+              Xchg eax,TRACK_ID	; повідомлення, який записуємо у TRACK_ID;
+NO_NOTIFY: cmp wmsg,WM_HSCROLL	; WM_HSCROLL надходить від
+             Jnz  NO_CHILD	; вікон типу “горизонтальний скролінг”
+             Mov eax,wparam	; молодша частина wparam – дія,
+             Shr   eax,16	; старша частина – позиція ковзуна;
+             Jz NO_CHILD	; якщо позиція = 0, то вийти з процедури;
+             Mov ebx,TRACK_ID	; TRACK_ID – поточний ідентифікатор, а
+             Cmp ebx,TRACK_ID1	; TRACK_ID1 – попередній ідентифікатор
+             Jnz NO_CHILD	; дочірнього вікна, які повинні співпадати;
+
+             Add ebx,offset COLOR	; ідентифікатор використовується
+             Mov [ebx],al	; як індекс кольору;
+
+             Call CreateSolidBrush,COLOR	; створюється кисть заданого кольору
+
+             Mov Brush,eax	; записати хендл кисті;
+
+  PAINT1:     Call GetDC, hwnd	; одержуємо графічний контекст
+             Mov HDC,eax	; вікна і зберігаємо його;
+
+             Call SelectObject,HDC,Brush	; записуємо дані у графічний контекст; 
+
+             Call Ellipse,HDC,0,0,400,270	; малюємо прямокутник
+;             Call Rectangle,HDC,0,0,400,270	; малюємо прямокутник
+
+             Call _wsprintfA, offset PRINT_BUF,offset FORMAT,COLOR
+             Add esp,4*3	; необхідно лише для _wsprintfA;
+             Call lstrlen,offset PRINT_BUF	; отримуємо довжину рядка
+             Call TextOutA, HDC, 10, 250, offset PRINT_BUF, eax
+             Call ReleaseDC,hwnd,HDC	; звільняємо графічний контекст;
+NO_CHILD:	; мітка виходу з процедури;
+             Call DefWindowProcA,hwnd,wmsg,wparam,lparam	; стандартний вихід,
+         Ret	; повернення з процедури;
+
+;------------------------------------------ зчитуємо інформацію про колівр з Edit:
+READ_COLOR:
+	call SendMessageA,hEDIT,WM_GETTEXT,260,offset TEXT_BUF
+	call inet_addr,offset TEXT_BUF
+	bswap eax
+	and eax,0ffffffh
+	mov COLOR,eax
+
+             Call CreateSolidBrush,COLOR	; створюється кисть заданого кольору
+             Mov Brush,eax	; записати хендл кисті;
+
+	call SendMessageA,MainHWnd,WM_PAINT,0,0
+	jmp CONTINUE_LOOP
+
+
+
+WndProc  endp
+End Start

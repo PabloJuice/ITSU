@@ -1,0 +1,124 @@
+; TRACK_MOUSE.txt 	; перехопити повідомлення від миші та змінти напрямок обертання
+
+	extrn PeekMessageA:Proc
+
+WM_MOUSEMOVE                         equ 200h	; lparam = X,Y wparam = MK_... 
+WM_LBUTTONDOWN                       equ 201h
+WM_LBUTTONUP                         equ 202h
+WM_LBUTTONDBLCLK                     equ 203h
+WM_RBUTTONDOWN                       equ 204h
+WM_RBUTTONUP                         equ 205h
+WM_RBUTTONDBLCLK                     equ 206h
+WM_MBUTTONDOWN                       equ 207h	; lparam = X,Y
+WM_MBUTTONUP                         equ 208h
+WM_MBUTTONDBLCLK                     equ 209h
+
+ MK_LBUTTON                           equ 1h
+ MK_RBUTTON                           equ 2h
+ MK_SHIFT                             equ 4h
+ MK_CONTROL                           equ 8h
+ MK_MBUTTON                           equ 10h
+
+.DATA
+msg:			; структура повiдомлення
+    msHWND	dd 0
+    msMESSAGE	dd 0
+    msWPARAM	dd 0
+    msLPARAM	dd 0
+    msTIME	dd 0
+    ptX		dd 0
+    ptY		dd 0
+
+;--------------------- змінні стану ситуації
+ ABS_DELTA_X_MOUSE	dd 0	; абсолютне переміщення миші по горизонталі
+ SIGN_X			dd 0	; знак переміщнення по горизонталі
+ ABS_DELTA_Y_MOUSE	dd 0	; абсолютне переміщення миші по вертикалі
+ SIGN_Y			dd 0	; знак переміщнення по вертикалі
+ KOEF_MOVE_MOUSE	dd 0.03	; швидкість обертання трекболу
+ PREV_MOUSE_COORD	dd 0	; упаковані попередні координати миші
+; FLG_MOVE_X		dd 1	; навколо якої осі крутимо: 1=X, 0=Y.
+;-------------------------------------------
+.CODE
+	call PeekMessageA,offset msg, NewHWnd, 0, 0,1	;PM_REMOVE
+	or eax,eax
+    jz EX_MSG
+
+	cmp msMESSAGE, WM_KEYDOWN
+	jnz NO_KEYDOWN
+		cmp msWPARAM,1bh		; якщо код <ESC>, то STOP
+		jz      STOP
+
+  NO_KEYDOWN:
+	cmp msMESSAGE,WM_LBUTTONDOWN
+     jnz NO_WM_LBUTTONDOWN
+	fldz
+	fst delta_X
+	fstp delta_Y
+    jmp EX_MOUSEMOVE
+
+     NO_WM_LBUTTONDOWN:
+	;-------------------------
+	cmp msMESSAGE,WM_MOUSEMOVE
+    jnz EX_MOUSEMOVE
+	mov eax,msWPARAM
+	cmp eax,0
+    jz EX_MOUSEMOVE	; рух миші повинен бути в комбінації з кнопкою
+
+	mov eax,msLPARAM
+	cmp PREV_MOUSE_COORD,0
+	jz C_PREV_MOUSE
+	;----------------- користувач повертає трекбол
+	mov SIGN_X,0
+	mov SIGN_Y,0
+	shr eax,16
+	sub ax,word ptr PREV_MOUSE_COORD+2
+       jnc NO_NEG_X_MOUSE
+	neg ax
+	mov SIGN_X,1
+       NO_NEG_X_MOUSE:
+	cwde
+	mov ABS_DELTA_X_MOUSE,eax
+
+	mov eax,msLPARAM
+	sub ax,word ptr PREV_MOUSE_COORD
+       jnc NO_NEG_Y_MOUSE
+	neg ax
+	mov SIGN_Y,1
+       NO_NEG_Y_MOUSE:
+	cwde
+	mov ABS_DELTA_Y_MOUSE,eax
+
+	cmp eax,ABS_DELTA_X_MOUSE
+	jc MOUSE_MOVE_X
+
+	mov FLG_MOVE_X,0
+	fild ABS_DELTA_Y_MOUSE
+	fmul KOEF_MOVE_MOUSE
+	cmp SIGN_Y,0
+	jz C_DIRECT_Y
+	fchs
+	C_DIRECT_Y:
+	fstp delta_Y
+	fldz
+	fstp delta_X
+      jmp EX_MOUSEMOVE
+;--------------------------
+	MOUSE_MOVE_X:
+	mov FLG_MOVE_X,1
+	fild ABS_DELTA_X_MOUSE
+	fmul KOEF_MOVE_MOUSE
+	cmp SIGN_X,0
+	jz C_DIRECT_X
+	fchs
+	C_DIRECT_X:
+	fstp delta_X
+	fldz
+	fstp delta_Y
+;-------------------------
+    EX_MOUSEMOVE:
+	mov eax,0
+
+      C_PREV_MOUSE:
+	mov PREV_MOUSE_COORD,eax
+
+EX_MSG:

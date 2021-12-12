@@ -1,0 +1,62 @@
+   Extrn glPushMatrix:Proc, glPopMatrix:Proc
+
+.data
+
+COLORS	dd 0.9, 0.1, 0.0,	0.2, 1.0, 0.0,	0.5, 0.1, 1.0
+	dd 1.0, 0.5, 0.5,	0.5, 1.0, 0.5,	0.5, 0.5, 1.0
+	dd 0.8, 0.5, 0.5,	1.0, 0.7, 0.2,	0.9, 0.5, 1.0
+	dd 0.3, 0.6, 0.7,	0.1, 0.9, 1.0,	0.7, 0.4, 0.95
+ARRAY_OF_POINTS:	; координати фiгури
+;	     X    Y    Z  	  X    Y    Z	  X    Y    Z
+	dd  0.0, 0.0, 0.5,	-1.0, 0.0, 0.0,	-0.7,-0.7, 0.0
+	dd  0.0,-1.0, 0.0,	 0.7,-0.7, 0.0,	 0.7,-0.7, 1.5
+	dd  0.92,-0.38,0.5,	 1.0, 0.0, 1.5,	 1.0, 0.0, 0.0
+	dd  0.7, 0.7, 0.0,	 0.0, 1.0, 0.0,	-0.7, 0.7, 0.0
+
+
+ LOGO_r1	dd 0.0
+ LOGO_r2	dd 0.0
+
+ LOGO_dt1	dd 0.5
+ LOGO_dt2	dd 0.88
+
+
+
+.code
+	mov esi,offset TEXTURES+4	; обираємо елемент з масиву текстур
+	; Oбираємо поточну текстуру по адресі esi:
+	call glBindTexture,GL_TEXTURE_2D,dword ptr [esi]
+
+	call glPushMatrix
+;----------------------
+	call glRotatef, LOGO_r1,0,p1,0	; повертаємо по OY
+	call glRotatef, LOGO_r2,0,0,p1	; повертаємо по OZ
+
+	fld LOGO_r1		; змiна кута повороту по OY
+	fadd LOGO_dt1
+	fstp LOGO_r1
+
+	fld LOGO_r2		; змiна кута повороту по OZ
+	fadd LOGO_dt2
+	fstp LOGO_r2
+;----------------------
+
+	call glBegin, GL_TRIANGLE_FAN	; малюємо з’єднанi в одну точку трикутники
+	mov ecx,3*4	; кiлькiсть точок в масивi
+	mov esi,offset COLORS
+	mov edi,offset ARRAY_OF_POINTS
+    L1:	pushad
+	call glTexCoord2f, dword ptr [esi], dword ptr [esi+4]
+	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]
+	popad
+	add esi,8	; колiр кожної точки займає 12 байт
+	add edi,12	; координати кожної точки займають 12 байт
+	loop L1
+	call glEnd	; закiнчили малювати трикутники
+
+	call glPopMatrix
+
+; Вертаємо текстуру назад
+
+	mov esi,MAIN_TEXTURE
+	call glBindTexture,GL_TEXTURE_2D,dword ptr [esi]

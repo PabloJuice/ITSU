@@ -1,0 +1,36 @@
+.386			;  Для процесора не нижче INTEL-386
+.model flat, STDCALL	;  компілювати як програму для WIN32; 
+; Визначення зовнішніх процедур:
+  extrn _wsprintfA:proc
+  extrn  ExitProcess :proc		; Ліквідація процесу,
+  extrn  MessageBoxA :proc	; Вивід вікна з повідомленням,
+  extrn  GetDriveTypeA :proc	; Отримання імені комп’ютера.
+
+.data	; Вміст сегменту даних:
+  buflen                dd 256		; Визначення комірки пам’яті
+  hello_title          db ' ЛР № 1 Джус П', 0
+  hello_message   db 'Drive C type: '	; Рядок байтів
+  text_buffer  db 256 dup (0)  ; Буфер заповнений нулям
+  FORM db 'Drive %s Type %ld' , 0
+  DRIVE_NAME db 'c:\', 0
+  user_name         db 256 dup (0)	; Буфер заповнений нулями
+
+.code       ; Вміст сегменту коду:
+Start:
+        push   offset buflen	           ; 2-й параметр:   адреса  buflen
+        push   offset user_name         ; 1-й параметр:   адреса  user_name
+       
+      call GetDriveTypeA, offset DRIVE_NAME
+      call _wsprintfA, offset text_buffer, offset FORM, offset DRIVE_NAME, eax
+      add esp,16
+
+      push  40h    ; стиль вікна – одна кнопка “OK” з піктограмою “і”
+      push offset hello_title		;  адреса рядка із заголовком
+      push offset hello_message	;  адреса рядка з повідомленням
+      push 0			;  хендл програми-власника вікна
+      call  MessageBoxA		;  виклик функції API
+
+       push 0			;  код виходу з програми
+       call ExitProcess		;  завершення програми
+
+end Start			;  закінчення сегменту кода

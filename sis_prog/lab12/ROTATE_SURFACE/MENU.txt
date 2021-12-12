@@ -1,0 +1,338 @@
+ Extrn _wsprintfA:proc
+
+ MAX_LINES  equ 100
+
+.data
+PUNKT1		db '   Show ',0		; 111
+PUNKT1a		db '   Edit ',0		; 111
+PUNKT2		db ' Background ',0	; 222
+PUNKT3		db ' Add Point ',0	; 333
+PUNKT4		db ' Remove Point ',0	; 444
+PUNKT5		db ' ADD LINE ',0	; 555
+PUNKT6		db ' Save ',0		; 666
+PUNKT7		db ' Load ',0		; 777
+
+ LINE_ID	dd 0	; NUMBER_OF_ANGLES
+ FORM_LINE_ID	db "LINE %ld ",0
+ FORM_LINE_IDS	db "LINE %ld* ",0
+ PREV_LINE_ID	dd 1
+
+.code
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,111	; (button "Show")
+    jnz NO_SHOW
+
+	cmp FLG_OpenGL_Maximize,1	; = 1 large window for showing mode
+      jnz C_SET_GL_MAX
+	mov eax,GL_old_width
+	mov GLwidth,eax
+	mov eax,GL_old_height
+	mov GLheight,eax
+	call SetWindowPos,hWndGL,0,0,0,GLwidth,GLheight,SWP_SHOWWINDOW
+	call SET_SIZE_SCENE
+	mov FLG_OpenGL_Maximize,0
+;---------------------------- change the button text:
+	call ModifyMenuA,HndMenu,111,0,111,offset PUNKT1
+	call DrawMenuBar,NewHWnd
+	jmp NO_MENU
+
+
+      C_SET_GL_MAX:			; maximizing the OpenGl window
+
+     call CREATE_SURFACE_DATA
+
+	mov eax,GLwidth
+	mov GL_old_width,eax
+	mov eax,GLheight
+	mov GL_old_height,eax
+
+  SWP_FRAMECHANGED	equ 0020h
+  SWP_SHOWWINDOW	equ 0040h
+
+	call GetClientRect,hwnd,offset RECT
+	mov eax,right
+	sub eax,left
+	mov GLwidth,eax
+	mov ecx,bottom
+	sub ecx,top
+	mov GLheight,ecx
+	call SetWindowPos,hWndGL,0,0,0,eax,ecx,SWP_SHOWWINDOW
+	call SET_SIZE_SCENE
+	mov FLG_OpenGL_Maximize,1
+
+;---------------------------- change the button text:
+
+	call ModifyMenuA,HndMenu,111,0,111,offset PUNKT1a
+	call DrawMenuBar,NewHWnd
+
+    NO_SHOW:
+;------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,222	; (button "Background")
+    jnz NO_Background
+
+  Extrn CreateBrushIndirect:Proc, GetOpenFileNameA:Proc
+
+  BS_PATTERN		equ 3
+  LR_DEFAULTSIZE	equ 40h
+  LR_LOADFROMFILE	equ 10h
+
+.data
+LOGBRUSH:	; структура, €ка описуЇ щiтку
+  lbStyle  DD BS_PATTERN ; дл€ створенн€ кистi використовуЇтьс€ BMP
+  lbColor  DD 0	; колiр або...
+  lbHatch  DD 0 ; хендл BMP.
+
+.code
+	mov CurFilter,3	; BMP
+	mov FileName,0
+	call GetOpenFileNameA, offset OPENFILENAME	; вибрати назву файла дл€ запису
+	cmp FileName,0
+	jz NO_Background
+
+    call LoadImageA,0,offset FileName,IMAGE_BITMAP,MAXX,MAXY,LR_LOADFROMFILE
+    cmp eax,0
+    jz STOP
+    mov lbHatch,eax	; ќтримали хендл зображенн€ дл€ створенн€ щiтки.
+			; якщо BMP знаходитьс€ в ресурсах, то використовуйте LoadBitmapA.
+
+    call CreateBrushIndirect,offset LOGBRUSH
+    cmp eax,0
+    jz STOP
+    mov wHbrBackground,eax	; викоритовуЇмо створену щiтку дл€ малюванн€ фону вiкна
+	call PAINT
+
+   NO_Background:
+;------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,333	; (button "Add Point")
+    jnz NO_Add_Pt
+	cmp NUMBER_OF_POINTS,22
+	jz NO_Add_Pt
+;--------- find point address:
+	mov eax,NUMBER_OF_POINTS
+	shl eax,4		;x16
+	add eax,offset POINTS
+;---------
+	cmp dword ptr [eax],0
+	jnz C_ADD_Pt1
+	mov esi,eax
+	mov ecx,2
+      L_ADD_Pt2:
+	push ecx
+	db 0fh,31h	; rdtsc
+	shr eax,3
+	xor eax,edx
+	mov edx,0
+	mov ecx,MAXX
+	sub ecx,300
+	div ecx
+	add edx,50
+	mov [esi],edx
+	add esi,4
+
+	db 0fh,31h	; rdtsc
+	shr eax,3
+	xor eax,[esi-4]
+	mov edx,0
+	mov ecx,MAXY
+	sub ecx,300
+	div ecx
+	add edx,50
+	mov [esi],edx
+	add esi,4
+	pop ecx
+     loop L_ADD_Pt2
+
+	fild dword ptr [esi-4]
+	fisub dword ptr [esi-12]
+	fst TEMP
+	fmul TEMP
+	fild dword ptr [esi-8]
+	fisub dword ptr [esi-16]
+	fst TEMP
+	fmul TEMP
+	faddp
+	fsqrt
+	fistp TEMP
+	cmp TEMP,80		; length from 80 to 90
+   jc TRAY_AGAIN_LAST_POINT
+	cmp TEMP,90
+      jc C_ADD_Pt1
+
+   TRAY_AGAIN_LAST_POINT:
+	sub esi,8
+	mov ecx,1
+	jmp L_ADD_Pt2
+
+      C_ADD_Pt1:
+	mov esi,NUMBER_OF_POINTS
+	shl esi,4		;x16
+	add esi,offset POINTS	; first point of zero angle
+
+	mov edi,esi
+	mov edx,MAX_POINTS	; 25
+	shl edx,4		;x16
+	mov ecx,1	;NUMBER_OF_ANGLES
+     L_COPYPOINT1:
+	add edi,edx
+	dec ecx
+	jz EX_COPYPOINT
+	pushad
+	mov ecx,4
+	rep movsd
+	popad
+    jmp L_COPYPOINT1
+ 
+    EX_COPYPOINT:
+	inc NUMBER_OF_POINTS
+	call PAINT
+	
+   NO_Add_Pt:
+;------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,444	; (button "Remove Point")
+    jnz NO_Remove_Pt
+	cmp NUMBER_OF_POINTS,2
+	jz NO_Remove_Pt
+	dec NUMBER_OF_POINTS
+	call PAINT
+
+   NO_Remove_Pt:
+;------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,555	; (button "ADD LINE")
+    jnz NO_ADDLINE
+
+	cmp LINE_ID,MAX_LINES
+    jnc NO_ADDLINE
+
+	inc LINE_ID
+	cmp LINE_ID,1
+	jnz C1_ADDLINE_PUNKT
+
+	call _wsprintfA,offset TEXT1,offset FORM_LINE_ID,LINE_ID
+	add esp,12
+	mov eax,LINE_ID
+	mov PREV_LINE_ID,eax
+
+	push	offset TEXT1
+	push	LINE_ID
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+	call DrawMenuBar,NewHWnd
+
+	inc LINE_ID
+
+     C1_ADDLINE_PUNKT:
+	call _wsprintfA,offset TEXT1,offset FORM_LINE_ID,PREV_LINE_ID
+	add esp,12
+
+	call ModifyMenuA,HndMenu,PREV_LINE_ID,0,PREV_LINE_ID,offset TEXT1
+
+	call _wsprintfA,offset TEXT1,offset FORM_LINE_IDS,LINE_ID
+	add esp,12
+
+	mov eax,LINE_ID
+	mov CURRENT_ANGLE,eax
+	mov PREV_LINE_ID,eax
+	
+	push	offset TEXT1
+	push	LINE_ID
+	push    MF_STRING
+	push	HndMenu
+	call	AppendMenuA
+	call DrawMenuBar,NewHWnd
+
+;------------------ copy first line:
+	mov esi,offset POINTS
+	mov eax,LINE_ID
+	dec eax
+	mov ecx,MAX_POINTS
+	mul ecx
+	shl eax,4	; x16 bytes
+	mov edi,eax
+	add edi,offset POINTS
+	mov ecx,NUMBER_OF_POINTS
+	shl ecx,2	; x4 coordinates
+	rep movsd
+
+	call PAINT
+
+   NO_ADDLINE:
+;------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,666	; (button "SAVE")
+    jnz NO_SAVE
+
+	mov CurFilter,1	; txt
+	mov FileName,0
+	call GetOpenFileNameA, offset OPENFILENAME	; вибрати назву файла дл€ запису
+	cmp FileName,0
+	jz    NO_SAVE
+
+	call SAVE_GL_FIGURE
+
+   NO_SAVE:
+;-------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,777	; (button "LOAD"); «м≥на текстури об'Їкта
+
+    jnz NO_LOAD
+
+
+.data
+  INDEX_OF_TEXTURE dd 0
+  MAIN_TEXTURE	dd offset TEXTURES
+
+.code
+	add INDEX_OF_TEXTURE,4	; перех≥д на наступну текстуру в масив≥ текстур
+	cmp INDEX_OF_TEXTURE,12+1
+    jc TEXTURE_OK
+	mov INDEX_OF_TEXTURE,0
+    TEXTURE_OK:
+
+	mov esi,offset TEXTURES	; початок масиву текстур
+	add esi,INDEX_OF_TEXTURE
+
+	; OбираЇмо поточну текстуру по адрес≥ esi:
+	mov MAIN_TEXTURE,esi
+	call glBindTexture,GL_TEXTURE_2D,dword ptr [esi]
+
+
+   NO_LOAD:
+;-------------------------------
+	mov eax,wparam
+	and eax,0ffffh
+	cmp eax,0
+	jz NO_CHOOSELINE
+	cmp eax,MAX_LINES+1	; (button "LINE N")
+    jnc NO_CHOOSELINE
+	mov CURRENT_ANGLE,eax
+
+	call _wsprintfA,offset TEXT1,offset FORM_LINE_ID,PREV_LINE_ID
+	add esp,12
+
+	call ModifyMenuA,HndMenu,PREV_LINE_ID,0,PREV_LINE_ID,offset TEXT1
+
+	call _wsprintfA,offset TEXT1,offset FORM_LINE_IDS,CURRENT_ANGLE
+	add esp,12
+
+	mov eax,CURRENT_ANGLE
+	mov PREV_LINE_ID,eax
+
+	call ModifyMenuA,HndMenu,PREV_LINE_ID,0,PREV_LINE_ID,offset TEXT1
+	call DrawMenuBar,NewHWnd
+
+	call PAINT
+    NO_CHOOSELINE:
+;-------------------------------
+

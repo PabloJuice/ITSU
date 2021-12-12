@@ -1,0 +1,224 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("Roboto-Regular.ttf");
+}
+* {
+  font-family: "Roboto";
+  padding: 0;
+  margin: 0;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+:focus, :active {
+  outline: none;
+}
+
+a:focus, a:active {
+  outline: none;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  -ms-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+input, button, textarea {
+  font-family: "Roboto";
+}
+
+input::-ms-clear {
+  display: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+button::-moz-focus-inner {
+  padding: 0;
+  border: 0;
+}
+
+a, a:visited {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}
+
+ul li {
+  list-style: none;
+}
+
+img {
+  vertical-align: top;
+}
+
+header {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  background-image: url("../img/headerbg.svg");
+  background-size: 100%;
+  background-repeat: no-repeat;
+  color: #ffffff;
+  height: 130vh;
+  width: 100%;
+}
+header * {
+  margin-top: 2%;
+}
+header .header-logo {
+  width: 20vh;
+}
+header .header-logo * {
+  fill: #ffffff !important;
+}
+header h1 {
+  font-size: 3.6vw;
+  margin-top: 4%;
+}
+header h2 {
+  font-size: 2.4vw;
+  font-weight: 400;
+}
+header .buy-holder {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 40%;
+  height: 4vh;
+  display: flex;
+  flex-direction: row;
+  padding-left: 2%;
+}
+header .buy-holder input {
+  padding: 3%;
+  width: 60%;
+  text-align: left;
+  border: 1px solid #ffffff;
+  border-radius: 5px;
+}
+header .buy-holder .buy-button {
+  font-size: 1vw;
+  margin-left: 5%;
+  background-color: #212021;
+  border: 1px solid #000000;
+  border-radius: 5px;
+  width: 37%;
+  padding: 3% 5% 3% 5%;
+  cursor: pointer;
+  color: #ffffff;
+}
+header p {
+  font-size: 0.8vw;
+  font-weight: 300;
+}
+header img {
+  width: 55vw;
+}
+
+#clock {
+  margin-top: 3%;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+main {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  justify-content: flex-start;
+}
+main .features-div {
+  justify-content: space-evenly;
+  align-items: baseline;
+  padding-top: 2%;
+  display: flex;
+  flex-direction: row;
+}
+main .features-div div {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 15%;
+  flex-direction: column;
+}
+main .features-div div p, main .features-div div b {
+  font-size: 1vw;
+  padding: 2%;
+  margin-top: 5%;
+  text-align: center;
+  width: 95%;
+}
+main .features-div div div {
+  width: 60%;
+  margin: 5%;
+  margin-left: 20%;
+}
+main .features-div div div .features-icon {
+  width: 50%;
+}
+main .company-icons {
+  margin-top: 5%;
+  width: 100%;
+  padding: 5%;
+}
+main .company-icons hr {
+  margin-left: 20%;
+  width: 60%;
+}
+main .company-icons img {
+  margin-top: 3%;
+  margin-bottom: 3%;
+  width: 7%;
+}
+
+footer {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  margin-top: 5%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+footer p {
+  padding: 1%;
+  width: 40%;
+  font-size: 1.4285714286vw;
+}
+footer b {
+  padding: 1%;
+  color: #34363b;
+  font-size: 1vw;
+}
+footer .buy-button {
+  margin-top: 3%;
+  font-size: 1vw;
+  font-weight: 900;
+  background-color: #008060;
+  border: 1px solid #008060;
+  border-radius: 5px;
+  width: 12%;
+  padding: 1%;
+  color: #ffffff;
+}
+footer a {
+  margin-top: 5%;
+  width: 100%;
+  padding: 2%;
+  text-align: right;
+  font-size: 1vw;
+}

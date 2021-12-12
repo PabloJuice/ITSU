@@ -1,0 +1,297 @@
+  Extrn GetSaveFileNameA:Proc, CreateFileA:Proc, WriteFile:Proc, CloseHandle:Proc
+
+   CREATE_ALWAYS      equ 2
+
+.data
+OPENFILENAME:
+  FSize		dd 76	; довжина цiєї структури;
+  Howner	dd 0	; вказiвник вiкна-власника або 0;
+  AppHWnd1	dd 0	; вказiвник модуля-власника;
+  Filters	dd offset filter_tab  ; вказiвник на перелiк типiв файлiв;
+  CustFilters	dd 0	; вказiвник на перелiк типiв файлiв якi дозволенi користувачевi;
+  CstFltSize	dd 0	; довжина буферу на який вказує CustFilters;
+  CurFilter	dd 1	; iндекс вибраного фiльтру (1,2,3,...) або 0;
+  CurFileName	dd offset FileName	; вказiвник на повне iм'я файлу, наприклад, на “С:\dir1\dir2\file.ext”,0;
+  CurFlNmSize	dd 512	; довжина буферу вказаного в CurFileName;
+  CurFile	dd 0	; вказiвник на iм'я файлу з розширенням;
+  CurFlSize	dd 0	; довжина буферу вказаного в CurFile;
+  InitialDir	dd 0	; вказiвник на каталог файлу або 0 для даного каталога;
+  DlgTitle	dd offset titl1	; вказiвник на назву вiкна;
+  Flags		dd 0		; тип вiкна, яке вiдкриває файл (може бути 200h);
+  FileOffset	dw 0		; повертає довжину повного шляху, наприклад=13 якщо користувач ввів рядок “С:\dir1\dir2\file.asm”;
+  ExtOffset	dw 0	; змiщення вiд початку рядка до розширення (в даному прикладi =18) або 0 якщо розширення немає;
+  Extension	dd 0	; вказiвник на стандартне розширення, яке буде додано до iменi, якщо розширення немає (або 0);
+  CustData	dd 0	; вказiвник на данi для hook-процедури;
+  HookProc	dd 0	; вказiвник на hook-процедуру, якщо вона дозволена у Flags;
+  TmplateRsc	dd 0	; вказiвник на шаблон ресурсiв, якщо вiн передбачений у Flags;
+
+;                додаткові змінні до структури:
+    filter_tab	db "Text files ",0,"*.txt",0
+		db "All files (*.*)",0,"*.*",0
+		db "BMP files (*.bmp)",0,"*.BMP",0,0
+
+    titl1	db "Choose the file:",0
+
+GL_PROG:
+ db "   GL_QUADS     equ  00007h",13,10,13,10
+ db " 	call glBegin,GL_QUADS",13,10
+ db " 	mov edi,offset GL_XYZ",13,10
+ db " 	mov esi,offset TEX_XY",13,10
+ db "     L_DAT1:",13,10
+ db " 	pushad",13,10
+ db " 	call glTexCoord2f, dword ptr [esi], dword ptr [esi+4]",13,10
+ db " 	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]",13,10
+ db " 	popad",13,10
+ db " 	add edi,12",13,10
+ db " 	add esi,8",13,10
+ db " 	cmp esi,END_MAS_POINTS_TEX",13,10
+ db "     jc L_DAT1",13,10
+ db " 	call glEnd",13,10
+ db " 	jmp EX_DD1",13,10
+
+	db "GL_XYZ:",13,10,0
+TEXT_XY		db "TEX_XY:",13,10,0
+EX_DAT1		db "EX_DAT1:",13,10,13,10,0
+
+; COORD2	dd 0.0,0.0,0.0  ; coord of first point (E)
+
+.data?
+  TMP1		dd ?
+  hFile		dd ?
+  FileName	db 260 dup(?)
+  TEXT1	db	200 dup(?)	; temporary text buffer
+
+;-------------------------------------------------------------
+.code
+PRINT_EAX_TO_EDI:
+	pushad
+	mov ecx,0ffffffffh
+	push ecx
+    L_PRN_EAX1:
+	mov ecx,10
+	mov edx,0
+	div ecx
+	push edx
+	cmp eax,0
+    jnz L_PRN_EAX1
+
+    L_PRN_EAX2:
+	pop edx
+	cmp edx,0ffffffffh
+	jz EX_PRN_EAX
+	add dl,"0"
+	mov [edi],dl
+	inc edi
+    jmp L_PRN_EAX2
+
+ EX_PRN_EAX:
+	mov byte ptr [edi],0
+	popad
+   ret
+
+;=============================================================
+PRINT_ST0_EDI:	; Вивід дійсного числа в десятковому форматі:
+	pushad
+	cld
+	fcom CONST_0	; fcomp
+	fstsw ax
+	sahf
+     jnc NO_FMINUS	; cf=1 if st(0)<MIN
+	mov al,"-"
+	stosb
+     NO_FMINUS:
+	fimul CONST_1000000000
+	fbstp BCD1		; перетворити в BCD-формат
+	mov esi,offset BCD1+8
+	mov ecx,9
+   L_fCONV3:
+	mov al,[esi]
+	shr al,4
+	and al,0fh
+      jnz L_fCONV1
+	cmp ecx,5
+   jz C_fCONV6
+	mov al,[esi]
+	and al,0fh
+      jnz C_fCONV2
+	dec esi
+	dec ecx
+	jmp L_fCONV3
+   C_fCONV6:
+	mov ax,".0"
+	stosw
+	jmp C_fCONV2
+   L_fCONV1:
+	mov al,[esi]
+	shr al,4
+	and al,0fh
+	add al,"0"
+	stosb
+	cmp ecx,5
+     jnz C_fCONV2
+	mov al,"."
+	stosb
+     C_fCONV2:
+	mov al,[esi]
+	and al,0fh
+	add al,"0"
+	stosb
+	dec esi
+   loop L_fCONV1
+	mov al,0
+	stosb
+	popad
+	ret
+
+  CONST_1000000000	dd 1000000000
+  CONST_0		dd 0.0
+
+.data?
+  BCD1		dt ?	; BCD формат результату
+;------------------------------------------------
+.data
+ DB1	db "	dd ",0
+ COMMA	DB ", ",0
+ DA	db 0dh,0ah,0
+ COMNT	db "; ",0
+ K_div	dd 100.0
+
+.code
+;================================================
+WRITE_STRING proc par1:dword
+	pushad
+	call lstrlen,par1
+
+        push 0
+        push offset TMP1 ; адреса змінної скільки байтів прочитано
+        push eax	 ; скільки байтів можна прочитати
+        push par1		 ; адреса початку блоку
+        push hFile	 ; хендл файлу
+        call WriteFile	 ; функцiя запису файлу
+	popad
+	ret
+
+WRITE_STRING endp
+
+;-----------------------------------------------------
+SAVE_GL_FIGURE:
+
+	push 0
+        push 0h            ; файл з дов_льними атрибутами 3 - readonly
+        push CREATE_ALWAYS ; в_дкрити _снуючий або створити новий
+        push 0             ; без атрибут_в безпеки
+        push 1h            ; дозволено сп_льний доступ по читанню
+        push 40000000h     ; GENERIC_WRITE
+        push offset FileName	    ; адреса _мен_ файлу
+        call CreateFileA
+	mov  hFile,eax         ; отримали хендл файлу
+
+	call GETNUMLINES
+
+	mov ecx,NUM_LINES
+	mov esi,offset POINTS
+
+	finit
+ L_SVL2:
+	push ecx
+	push esi
+	mov ecx,NUMBER_OF_POINTS	; in each line
+   L_SVL1:
+	pushad
+	call WRITE_STRING,offset DB1
+	mov edi,offset TEXT1
+
+	mov eax,[esi]
+	call PRINT_EAX_TO_EDI
+	call WRITE_STRING,offset TEXT1
+	call WRITE_STRING,offset COMMA
+
+	mov eax,[esi+4]
+	call PRINT_EAX_TO_EDI
+	call WRITE_STRING,offset TEXT1
+	call WRITE_STRING,offset COMMA
+
+	mov eax,[esi+8]
+	call PRINT_EAX_TO_EDI
+	call WRITE_STRING,offset TEXT1
+	call WRITE_STRING,offset COMMA
+
+	mov eax,[esi+12]
+	call PRINT_EAX_TO_EDI
+	call WRITE_STRING,offset TEXT1
+	call WRITE_STRING,offset DA
+	popad
+	add esi,16
+	dec ecx
+    jnz L_SVL1
+	call WRITE_STRING,offset DA
+
+	pop esi
+	pop ecx
+	mov eax,MAX_POINTS	; 25
+	shl eax,4		;x16
+	add esi,eax
+	dec ecx
+ jnz L_SVL2
+
+	call CloseHandle, hFile
+ ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	call WRITE_STRING,offset GL_PROG  ; write the string to file
+
+	mov esi,offset MAS_POINTS_QUADS
+  L_SAVE_QUADS3:
+	call WRITE_STRING,offset DB1
+	mov ecx,4
+   L_SAVE_QUADS1:
+	mov edi,offset TEXT1
+	fld dword ptr [esi]
+	call PRINT_ST0_EDI
+	call WRITE_STRING,offset TEXT1
+	add esi,4
+	cmp esi,END_MAS_POINTS_QUADS
+	jnc EX_SAVE_QUADS
+	dec ecx
+     jnz C_SAVE_QUADS2
+	call WRITE_STRING,offset DA
+  jmp L_SAVE_QUADS3
+
+     C_SAVE_QUADS2:
+	call WRITE_STRING,offset COMMA
+    jmp L_SAVE_QUADS1
+
+  EX_SAVE_QUADS:
+
+	call WRITE_STRING,offset DA
+	call WRITE_STRING,offset TEXT_XY
+
+;---------------------- save texture coordinates:
+	mov esi,offset MAS_POINTS_TEX
+  L_SAVE_TEX3:
+	call WRITE_STRING,offset DB1
+	mov ecx,4
+   L_SAVE_TEX1:
+	mov edi,offset TEXT1
+	fld dword ptr [esi]
+	call PRINT_ST0_EDI
+	call WRITE_STRING,offset TEXT1
+	add esi,4
+	cmp esi,END_MAS_POINTS_TEX
+	jnc EX_SAVE_TEX
+	dec ecx
+     jnz C_SAVE_TEX2
+	call WRITE_STRING,offset DA
+  jmp L_SAVE_TEX3
+
+     C_SAVE_TEX2:
+	call WRITE_STRING,offset COMMA
+    jmp L_SAVE_TEX1
+
+  EX_SAVE_TEX:
+	call WRITE_STRING,offset DA
+	call WRITE_STRING,offset EX_DAT1
+
+	call CloseHandle, hFile
+ ret
+;-----------------------------------------------------

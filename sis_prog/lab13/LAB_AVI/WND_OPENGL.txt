@@ -1,0 +1,331 @@
+;  Створює та відображає вікно, що містить 3D-сцену.
+;---------------------------------------------------
+
+  extrn ChoosePixelFormat:Proc, SetPixelFormat:Proc, wglCreateContext:Proc
+  extrn wglMakeCurrent:Proc, glViewport:Proc, glMatrixMode:Proc, SetTimer:Proc
+  extrn glEnable:Proc, glLoadIdentity:Proc,gluPerspective:Proc, glGetDoublev:Proc
+  extrn SwapBuffers:PROC, glVertex3f:Proc, glColor3f:Proc,glClear:Proc
+  extrn glTranslatef:Proc, glRotatef:Proc, glBegin:Proc, glEnd:Proc,glFinish:Proc
+  extrn LoadImageA:Proc, GetObjectA:Proc, gluBuild2DMipmaps:Proc, glTexCoord2f:Proc
+  extrn ClientToScreen:Proc, lstrlen:Proc, GetClientRect:Proc,SendMessageA:Proc, SetCursorPos:Proc
+  extrn glGenTextures:Proc, glBindTexture:Proc, glDeleteTextures:Proc,GetSystemMetrics:Proc,glDrawPixels:proc
+  extrn glPushMatrix:Proc, glPopMatrix:Proc
+
+  Extrn CreateFontA:Proc, glListBase:Proc, glCallLists:Proc, wglUseFontOutlinesA:Proc
+  Extrn glListBase:Proc, lstrlen:Proc, glLightfv:Proc, glDisable:Proc, glMaterialfv:Proc
+  Extrn glScalef:Proc
+
+ WGL_FONT_POLYGONS   	equ  1
+ GL_LIGHTING            equ  00B50h
+ GL_LIGHT0              equ  04000h
+
+ GL_TEXTURE_GEN_S       equ  00C60h
+ GL_TEXTURE_GEN_T       equ  00C61h
+
+ GL_FRONT               equ  00404h
+ GL_EMISSION            equ  01600h
+
+ GL_MODELVIEW_MATRIX   equ  00BA6h
+
+ LR_LOADFROMFILE	equ 10h
+ LR_CREATEDIBSECTION 	equ 2000h
+ IMAGE_BITMAP		equ 0
+ GL_UNSIGNED_BYTE	equ 1401h
+ GL_RGB			equ 1907h
+
+ WS_CLIPSIBLINGS EQU 04000000h
+ WS_CLIPCHILDREN EQU 02000000h
+ WS_VISIBLE      EQU 010000000h
+ WS_CHILD        EQU 40000000h
+ WS_DLGFRAME     EQU 000400000h
+
+ WM_KEYDOWN	 EQU 100h
+ WM_DESTROY      equ 2h
+ WM_SIZING 	 equ 214h
+ WM_TIMER        equ 113h
+
+ GL_MODELVIEW                    EQU  1700h
+ GL_PROJECTION                   EQU  1701h
+ GL_DEPTH_TEST                   EQU  0B71h
+ GL_COLOR_BUFFER_BIT     = 00004000h
+ GL_DEPTH_BUFFER_BIT     = 00000100h
+ GL_TRIANGLE_FAN	equ  00006h
+ GL_BGR_EXT              equ  080E0h
+ GL_TEXTURE_2D		equ  0DE1h
+ GL_TEXTURE		EQU  01702h
+ GL_POLYGON		equ  00009h
+
+ IDC_CROSS               equ 32515
+ IDC_HAND		equ 32649
+
+;==========================================
+.data
+ fCONST_10 dd 10.0
+ fCONST_0  dd 0.0
+
+ Deep_scene dq 3000.0	; максимальна глибина сцени
+ p45q	dq 30.0		; КУТ огляду
+ p1q	dq 1.0		 
+
+ p1	dd	 1.0		; 4х-байтнi константи
+ p08	dd	 0.8
+ m1	dd	-1.0
+ m4	dd	-4.0
+
+ distance	dd -11.0	; відстань до сцени
+ OBSERVE_X	dd 0	; Загальне переміщення спостерігача по X
+ OBSERVE_Y	dd 0	; Загальне переміщення спостерігача по Y
+ delta_OBSERVE  dd 0.05  ; Зміщення переміщення спостерігача
+
+GLWndClassName db 'GL_MYWND',0
+
+ WC_GL	  dd 0023h,offset GLWndProc,0,0	; структура WNDCLASS
+ hInstance dd 0,0
+ hCursor  dd 0,1,0,offset GLWndClassName
+
+GLRECT:		; координати GL-вiкна
+  dd 0,0	; left,top
+ GLwidth	dd ?		; розмiри GL-вiкна
+ GLheight	dd ?
+
+ PANELWIDTH	dd 120		; розмір кнопок справа
+ 
+PIXELFORMATDESCRIPTOR:
+  nSize			dw	28h
+  nVersion		dw	2
+  PFdwFlags		dd	25h	; прапорцi для використання OpenGL
+  iPixelType		db	0
+  cColorBits		db	24	;16
+  cRedBits		db	13 dup(0)
+  cDepthBits		db	32	;16
+  cStencilBits		db	16 dup(0)
+
+  NO_MaterialColor dd 1.0, 1.0, 1.0, 1.0	; білий колір
+         
+.data?
+ TEMP	dq ?	; робочі змiнні
+ fTEMP	dd ?
+
+ GLhDC	dd ?	; графiчний контекст вiкна
+ hRC	dd ?	; графiчний контекст OpenGL
+
+ hWndGL		dd ?	; Хендл GL-вікна
+ LAST_TEXTURE_NUMBER	dd ?	; кількість знайдених малюнків
+
+;================================================
+.code
+;------------------------------------------------
+   include START_FIGURE.txt	; Підготувати початкову фігуру в ADR_FIGURE_DATA
+;------------------------------------------------
+	call GetClientRect,PARENT_hWnd,offset GLRECT
+	mov eax,GLwidth
+	sub eax,PANELWIDTH	; зробити панель для кнопок
+	mov GLwidth,eax
+
+	call GetModuleHandleA,0
+	mov hInstance,eax
+	call LoadCursorA,0,IDC_HAND
+	mov  hCursor,eax
+	call RegisterClassA, offset WC_GL
+
+	call CreateWindowExA,0,eax,0,WS_CLIPSIBLINGS or WS_CLIPCHILDREN\
+	or WS_VISIBLE or WS_CHILD or WS_DLGFRAME,0,0,GLwidth,GLheight,PARENT_hWnd,0,hInstance,0
+	mov hWndGL,eax
+
+;================================= підключення OpenGL
+	call GetDC, hWndGL
+	mov GLhDC,eax
+
+	call ChoosePixelFormat, GLhDC, offset PIXELFORMATDESCRIPTOR
+	call SetPixelFormat, GLhDC,eax,offset PIXELFORMATDESCRIPTOR
+	call wglCreateContext, GLhDC		; створити графiчний контекст OpenGL
+	mov hRC,eax
+	call wglMakeCurrent, GLhDC,eax	; вибрати дане вiкно для роботи
+
+;====================== Завантажити малюнки як текстури
+
+	call LOAD_ALL_TEXTURES	; Заповнити масив текстур
+
+;========================================
+
+	call SET_SIZE_SCENE	; задати параметри спостереження в залежності від розмірів вікна
+
+   ; обнулення поточної матриці (матриці перетворень моделі)
+	call glMatrixMode, GL_MODELVIEW
+	call glLoadIdentity
+
+	call glEnable, GL_DEPTH_TEST	; об'єкти можуть перетинатись
+	call glEnable, GL_TEXTURE_2D	; включити механ_зм обробки текстури
+	call glMaterialfv, GL_FRONT, GL_EMISSION, offset NO_MaterialColor
+	call SetCursorPos,100,100
+	jmp EX_WNDGL	; Підготовчі операції закінчено. Вихід.
+
+;=============================================================
+DrawGLScene proc  ; Викликається батьківським вікном
+
+	call glGetDoublev,GL_MODELVIEW_MATRIX,offset modelview	 ; знаходимо матрицю моделі
+
+.data
+Matrix_Trackball: ; визначається рухами миші
+  Px	dd 1.0
+  Py	dd 1.0
+  Pz	dd 0.0
+
+; Координати осі обертання як результат множення MUL_VECTOR
+  Pz1	dd 0.0
+  Pz2	dd 0.0
+  Pz3	dd 0.0
+
+  GAMA	dd 0.0	; сумарний кут повороту
+
+.data?
+  modelview	dq 16 dup(?)	; матриця моделі 4x4
+
+.code
+	finit
+  ; повертаємо сцену згідно рухів миші:
+	mov edi,offset Matrix_Trackball
+	call MUL_VECTOR	; розрахунок повороту простору у напрямку трекбола
+  ; delta - поворот відносно попереднього положення
+	call glRotatef,delta,Pz1,Pz2,Pz3 ; повертаємо на delta за кожну промальовку
+
+	fld GAMA
+	fadd delta
+	fstp GAMA
+;--------------------------------------------------
+     DRAW_SP:  ; область користувача
+
+	call USER_SPACE	; Малювання сцени без поворотів простору (внутрішні повороти елементів залишаються)
+
+	ret
+DrawGLScene endp	
+;=================================================
+
+GLWndProc proc hwnd : DWORD, wmsg : DWORD, wparam: DWORD, lparam:DWORD
+	cmp wmsg,WM_DESTROY
+	jz STOP
+	cmp wmsg,WM_SIZING
+	jnz NO_SIZING
+
+	call SET_SIZE_SCENE	; якщо міняється розмір вікна
+
+  NO_SIZING:
+	call DefWindowProcA,hwnd,wmsg,wparam,lparam
+	ret
+GLWndProc endp
+
+;---------------------------------------------------------------------
+
+   include DRAW_QUADS.txt	; Підпрограма малювання полігонів
+
+;---------------------------------------------------------------------
+
+   include LOAD_IMAGE.txt	; Підпрограма завантаження малюнків
+
+;---------------------------------------------------------------------
+SET_SIZE_SCENE:
+	call glPushMatrix
+	call glViewport, 0,0,GLwidth,GLheight	; встановити все вiкно для огляду
+	call glMatrixMode, GL_PROJECTION
+
+	call glLoadIdentity	; встановити початковий стан
+	fild GLwidth
+	fild GLheight
+	fdivp
+	fstp TEMP	; TEMP = width / height 
+
+	push qword ptr Deep_scene	; вiдстань до кiнця сцени
+	push qword ptr p1q	; вiдстань до початку сцени
+	push qword ptr TEMP	; GLwidth/GLheight
+	push qword ptr p45q	; кут огляду
+	call gluPerspective	; встановити параметри спостереження
+
+   ; зсув спостерігача від сцени
+
+	call glTranslatef,OBSERVE_X,OBSERVE_Y,distance	; Загальне переміщення спостерігача по X,Y та Z
+
+	call glPopMatrix	; повернення поточного стану при повороті
+   ret
+
+;==================================================================================
+LOAD_ALL_TEXTURES:	; Завантажує нульову текстуру "сітка" та всі решта текстури
+.data
+  CUR_TEX_NAME db "EDIT_Texture.bmp",0
+.code
+	mov MAX_ADR_TEXTURES,offset TEXTURES
+      ; Завантажити нульову текстуру - "сітку"
+	call LOAD_JPG,offset CUR_TEX_NAME ; завантажити текстуру квадрата для редагування
+ 	cmp FLG_IMG_READY,0	; малюнок не завантажено
+	jz ERR_IMG
+	call CREATE_NEXT_TEXTURE ; Заповнити одну текстуру
+      ; Якщо не вказана текстура, то використовується нульова текстура в масиві текстур
+	call glBindTexture,GL_TEXTURE_2D,dword ptr TEXTURES
+
+	mov MAX_ADR_TEXTURES,offset TEXTURES+4
+	mov FLG_NO_FILES,0	; для визначення, що файлів більше немає
+	mov LAST_TEXTURE_NUMBER,0	; для підрахуноку кількості малюнків
+	mov ecx,MAX_IMAGES	; кількість необхідних малюнків
+   L_LOAD_TEX5:
+	push ecx
+	  call FIND_TEXTURE
+	  inc LAST_TEXTURE_NUMBER	; підрахунок кількості малюнків
+	pop ecx
+	  cmp FLG_NO_FILES,1	; більше файлів немає?
+	jz CONTINUE1
+   loop L_LOAD_TEX5	; цикл продовжується при умові, якщо не 0 і якщо ecx>0
+    CONTINUE1:
+   ret
+
+;======================= множення вектора EDI на GL-матрицю ESI
+MUL_VECTOR:	; edi - адреса вектора, на який множимо
+	mov esi,offset modelview
+	mov edx,offset Pz1 ; результат множення
+	mov ecx,3
+    L_MATR2:
+	push ecx
+	push esi
+	push edi
+	fldz
+	fstp dword ptr [edx]
+	mov ecx,3
+     L_MATR1:
+	fld qword ptr [esi]
+	fmul dword ptr [edi]
+	fadd dword ptr [edx]
+	fstp dword ptr [edx]
+	add esi,8
+	add edi,4
+     loop L_MATR1
+	pop edi
+	pop esi
+	add esi,32 ; матриця 4x4 (для миші враховуються лише повороти)
+	add edx,4
+	pop ecx
+   loop L_MATR2
+	ret
+
+;----------------------------------------------------------
+USER_SPACE:	; Малювання сцени без поворотів
+;----------------------------------------------------------
+	call glClear,GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT
+
+   call PICTURES_3D ; багатогранник
+
+   include 3D_TEXT.txt	; вивід об'ємного надпису
+
+   include MY_FUNCTION.txt  ; вивід об'ємної функції
+
+;--------------------------------------------------------------
+; Викликається в кінці сцени малювання, інакше не бачить фігур:
+  call GET_MOUSE_COORD	; отримує 3D-координати миші та малює сферу-курсор
+;--------------------------------------------------------------
+
+	call glFinish	; закiнчити малювати сцену
+cmp FLG_SwapBuffers,0
+jz NO_SwapBuffers
+	call SwapBuffers,GLhDC		; обмiняти вiдео-сторiнки
+NO_SwapBuffers:
+	ret
+;----------------------------------------
+
+EX_WNDGL:

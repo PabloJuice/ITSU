@@ -1,0 +1,22 @@
+; Програма для визначення поточної дати та місцевого часу
+.586
+.model flat,STDCALL
+
+	extrn ExitProcess:	proc, RemoveDirectoryA:proc
+	.data
+
+FileName1	db "G:\STEP\рік1_сем2\sis_prog\dir1",0
+
+
+;==============================================================
+	.code
+Start:    			 
+	call	RemoveDirectoryA, offset FileName1
+
+	call	ExitProcess,0
+    
+end	Start
+
+
+
+

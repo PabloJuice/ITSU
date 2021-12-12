@@ -1,0 +1,31 @@
+;  Початкове виділення пам'яті для фігури
+;  та копіювання туди фігури за замовченням
+;-------------------------------------------
+
+.data
+  ADR_FIGURE_DATA dd ?	; адреса початку полігонів фіури
+  hMEM_FIG	  dd ?
+
+.code
+	call GlobalAlloc,2, 10000000	; ~ 10 Mb
+	mov hMEM_FIG,eax
+	cmp eax,0
+	jz STOP_ERR
+	call GlobalLock,hMEM_FIG
+	cmp eax,0
+	jz STOP_ERR
+	mov edi,eax	; edi = адреса нового блоку пам'яті
+
+	mov esi,offset GL_XYZ
+	mov ADR_FIGURE_DATA,edi
+	mov eax,0
+     L_START1:
+	mov ecx,edx
+	mov eax,[esi]
+	mov [edi],eax
+	mov edx,eax
+	add esi,4
+	add edi,4
+	and eax,ecx
+	cmp eax,0ffffffffh
+    jnz L_START1

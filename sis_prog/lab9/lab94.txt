@@ -1,0 +1,137 @@
+.486
+.model flat,stdcall
+
+extrn MultiByteToWideChar:Proc
+extrn ExitProcess:Proc
+extrn lstrcat:Proc
+extrn CoInitialize:Proc
+extrn CoUninitialize:Proc
+extrn CoCreateInstance:Proc
+extrn SHGetSpecialFolderLocation:Proc
+extrn SHGetPathFromIDList:Proc
+
+;  IPersistFile            STRUCT DWORD
+;       IPersistFile_QueryInterface       comethod3   0
+;       IPersistFile_AddRef               comethod1       4
+;       IPersistFile_Release              comethod1       8
+;       IPersistFile_GetClassID       comethod2       0Ch
+;       IPersistFile_IsDirty              comethod1       10h
+;       IPersistFile_Load                 comethod3       14h
+;       IPersistFile_Save                 comethod3       18h
+;       IPersistFile_SaveCompleted        comethod2   1Ch
+;       IPersistFile_GetCurFile           comethod2       20h
+; IPersistFile            ENDS
+
+.data
+DESKTOP    db 260 dup(0),0
+PROG_PATH  db "D:\stud\step2\sis_prog\lab2\lab21.exe",0
+ICON_PATH db "C:\Windows\System32\Shell32.dll", 0
+WORK_DIR  db "C:\WINNT\Temp",0
+LINKNAME  db "\джус.lnk",0
+BUF1  db 520 dup(0)
+
+CLSID_Shortcut:
+  dd 00021401h  ; HKEY_CLASSES_ROOT\CLSID\{00021401-0000-0000-C000-000000000046}  =  Shortcut
+  dw 0000h,0000h
+  db 0C0h,00h
+  db 00h,00h,00h,00h,00h,46h  ; {000214EE-0000-0000-C000-000000000046}
+
+IID_IShellLink:
+  dd 000214EEh  ; HKEY_CLASSES_ROOT\Interface\{000214EE-0000-0000-C000-000000000046} = IShellLinkA
+  dw 0000h,0000h
+  db 0C0h,00h
+  db 00h,00h,00h,00h,00h,46h
+
+IID_IPersistFile:
+    dd  0000010Bh  ; HKEY_CLASSES_ROOT\Interface (IPersistFile)
+    dw  0000h, 0000h
+    db  0C0h, 00h
+    db  00h,00h,00h,00h,00h,046h
+
+  DIRECTORY_ID  dd 0    ; хендл папки;
+    Result  dd 0
+    INTERFACE  dd 0
+    PSL    dd 0
+
+.code
+Start:
+ ; Отримуємо шлях до каталогу "DESKTOP":
+  call SHGetSpecialFolderLocation,0,0,offset DIRECTORY_ID
+  call SHGetPathFromIDList,DIRECTORY_ID,offset DESKTOP
+  call lstrcat,offset DESKTOP,offset LINKNAME
+
+ ; Перетворюємо шлях до DESKTOP з кодування ANSI в UNICODE:
+  Call MultiByteToWideChar,0,0,offset DESKTOP,-1,offset BUF1,520
+
+ ; Iнiциалiзуємо роботу з бiблiотекою COM (Component Object Model)
+  call    CoInitialize,0
+
+ ; Створюємо об'єкт та отримуємо вказiвник на його iнтерфейс (IShellLink),
+ ; та записуємо вказiвник в змiнну PSL.
+
+  Call CoCreateInstance, offset CLSID_Shortcut, 0, 1, offset IID_IShellLink, offset PSL
+  mov     Result, eax
+  test    eax, eax
+  js      STOP
+
+ ; Запросити у інтерфейсу IShellLink вказiвник на iнтерфейс IPersistFile.
+ ; Iншими словами, викликаємо метод QueryInterface (змiщення 0h в таблицi методiв),
+ ; який налаштовує IShellLink на використання iнтерфейсу IPersistFile.
+ ; В результатi отримуємо хендл INTERFACE, який вказує
+ ;  на таблицю методiв IPersistFile для роботи з IShellLink.
+  mov     edx,PSL
+  mov     edx, [edx]
+  call    [edx],PSL,offset IID_IPersistFile,offset INTERFACE
+  mov     Result, eax
+  test    eax, eax
+  js      Err1  ; В разi помилки треба знищити об'єкт
+
+ ; Виклик методу SetPath з iнтерфейсу IShellLink
+ ; для встановлення шляху до програми на яку ми збираємось створити ярлик.
+ ; Метод SetPath (50h) має 1 параметр:
+  mov     edx,PSL
+  mov     edx, [edx]
+  call    [edx+50h],PSL,offset PROG_PATH
+  mov     Result, eax
+
+; Виклик методу SetIconLocation з iнтерфейсу IShellLink
+ ; для встановлення шляху до iконки яка буде вiдображатися на ярлику.
+ ; Метод SetIconLocation (44h) має 2 параметри:
+  mov     edx,PSL
+  mov     edx, [edx]
+  call    [edx+44h],PSL,offset ICON_PATH,10
+  mov     Result, eax
+
+ ; Виклик методу SetWorkingDirectory з iнтерфейсу IShellLink:
+ ; для встановлення шляху до робочого каталогу, в якому буде працювати програма.
+ ; Метод SetWorkingDirectory (24h) має 1 параметр:
+  mov     edx,PSL
+  mov     edx, [edx]
+  call    [edx+24h],PSL,offset WORK_DIR
+  mov     Result, eax
+;--------------------------------------------------------------------
+ ; Виклик методу Save з iнтерфейсу IPersistFile
+ ; для створення файлу з розширенням ".lnk" в каталозi "DESKTOP".
+ ; Метод Save iнтерфейсу IPersistFile має 3 параметри i його адреса
+ ; знаходиться за змiщенням +18h в таблицi методiв даного об'єкту.
+  mov     edx,INTERFACE
+  mov     edx, [edx]
+  call    [edx+18h],INTERFACE,offset BUF1,1
+  mov     eax, Result
+
+ ; Виклик методу Release з iнтерфейсу IPersistFile:
+  mov     edx,INTERFACE
+  mov     edx, [edx]
+  call    [edx+8],INTERFACE
+  mov     Result, eax
+
+ Err1:
+ ; Виклик методу Release з iнтерфейсу IShellLink для знищення об'єкту.
+  mov     edx,PSL
+  mov     edx, [edx]
+  call    [edx+8],PSL
+  mov     Result, eax
+
+STOP:
+  call    ExitProcess,0
+end Start

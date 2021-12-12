@@ -1,0 +1,43 @@
+@import "variables.scss";
+@import "fonts.scss";
+@import "mixins.scss";
+@import "obnullator.scss";
+
+.carousel {
+  margin-bottom: 4rem;
+	.carousel-caption {
+	  bottom: 3rem;
+	  z-index: 10;
+	}
+
+	.carousel-item {
+	  height: 75%;
+		img {
+      cursor: pointer;
+			width:70%;
+			min-width: 500px;
+			height: 100%;
+		}
+	}
+}
+.container-fluid{
+  .row{
+    .column{
+      .card{
+        height: 95%;
+        .card-body{
+          padding-top: 5%;
+          padding-left: 3%;
+          padding-right: 3%;
+
+        }
+      }
+    }
+  }
+}
+.card{
+  cursor: pointer;
+  width: 20%!important;
+  max-width: 18rem!important;
+  min-width: 15rem!important;
+}

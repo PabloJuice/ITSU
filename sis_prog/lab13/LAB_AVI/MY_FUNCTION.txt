@@ -1,0 +1,138 @@
+;  Приклад функції Z = 0.5*((X)^2-(Y)^2)-0.08 на інтервалі (-2,-2)..(2,2)
+;-------------------------------------------------------------
+
+.data
+; початкові координати
+ BEG_X	dd -2.0
+ BEG_Y	dd -2.0
+
+; кінцеві координати
+ END_X	dd  2.0
+ END_Y	dd  2.0
+
+  N_POLYGONES	dd 30	; кількість поліонів на відрізку
+
+   delta_X	dd ?	; крок обчислень
+   delta_Y	dd ?	
+
+ MY_CONST_f1	dd 1.0
+ MY_CONST_f2	dd 0.08
+ MY_CONST_f3	dd 0.99
+
+  XF	dd ?
+  YF	dd ?
+  ZF	dd ?
+ F_TEMP dd ?
+
+.code
+    ; обчислюємо кроки по X та Y
+	finit
+	fld END_X
+	fsub BEG_X
+	fidiv N_POLYGONES
+	fstp delta_X
+
+	fld END_Y
+	fsub BEG_Y
+	fidiv N_POLYGONES
+	fstp delta_Y
+
+   ; знаходимо початок пам'яті для запису
+	mov edi,ADR_FIGURE_DATA	   ; адреса початку фігури
+	add edi,offset END_XYZ
+	sub edi,offset GL_XYZ
+	mov dword ptr [edi],0fffffffeh	; ідентифікатор текстури
+	mov dword ptr [edi+4],0		; номер текстури (для функції)
+	add edi,8	; edi показує на координати майбутнього полігона X,Y,F(X,Y)
+
+   ; заповнюємо память полігонами
+	fld BEG_X
+	fstp XF
+
+	mov ecx,N_POLYGONES
+   L_FUNC2:
+	push ecx
+	fld BEG_Y
+	fstp YF
+
+	mov ecx,N_POLYGONES
+     L_FUNC1:
+	push ecx
+
+	fld XF
+	fstp dword ptr [edi]
+	fld YF
+	fstp dword ptr [edi+4]
+	call MY_FUNC
+	fstp dword ptr [edi+8]
+	add edi,12
+
+	fld XF
+	fadd delta_X
+	fst XF
+	fstp dword ptr [edi]
+	fld YF
+	fstp dword ptr [edi+4]
+	call MY_FUNC
+	fstp dword ptr [edi+8]
+	add edi,12
+
+	fld XF
+	fstp dword ptr [edi]
+	fld YF
+	fadd delta_Y
+	fst YF
+	fstp dword ptr [edi+4]
+	call MY_FUNC
+	fstp dword ptr [edi+8]
+	add edi,12
+		
+	fld XF
+	fsub delta_X
+	fst XF
+	fstp dword ptr [edi]
+	fld YF
+	fstp dword ptr [edi+4]
+	call MY_FUNC
+	fstp dword ptr [edi+8]
+	add edi,12
+	mov dword ptr [edi],0ffffffffh
+	add edi,4
+
+	pop ecx
+	dec ecx
+    jnz L_FUNC1
+
+	fld XF
+	fadd delta_X
+	fstp XF
+
+	pop ecx
+	dec ecx
+   jnz L_FUNC2
+	mov dword ptr [edi],0ffffffffh
+	add edi,4
+
+ jmp EX_MY_FUNCTION
+
+;-----------------------------------------------------
+MY_FUNC:	; обчислення функції  ZF = FUNC(XF,YF)
+	fld YF
+	fmul YF
+	fstp F_TEMP
+
+	fld XF
+	fmul XF
+	fsub F_TEMP
+
+	fmul MY_CONST_f1
+	fsub MY_CONST_f2
+   ret
+;----------------------------------------------------
+
+EX_MY_FUNCTION:	; функцію побудовано;
+
+; Плавна зміна коефіциєнтів функції:
+  fld MY_CONST_f1
+  fmul MY_CONST_f3
+  fstp MY_CONST_f1

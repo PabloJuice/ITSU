@@ -1,0 +1,44 @@
+.586
+.model flat,STDCALL
+
+	extrn ExitProcess: proc, SHFileOperationA:Proc
+
+FO_MOVE			equ 1
+FO_COPY			equ 2
+FO_DELETE		equ 3
+FO_RENAME		equ 4
+FOF_MULTIDESTFILES	equ 1
+FOF_CONFIRMMOUSE	equ 2
+FOF_SILENT		equ 4 
+FOF_RENAMEONCOLLISION	equ 8
+FOF_NOCONFIRMATION	equ 10h 
+FOF_WANTMAPPINGHANDLE	equ 20h 
+FOF_ALLOWUNDO		equ 40h
+FOF_FILESONLY		equ 80h 
+FOF_SIMPLEPROGRESS	equ 100h 
+FOF_NOCONFIRMMKDIR	equ 200h 
+FOF_NOERRORUI		equ 400h 
+	
+	.data
+
+FileName1	db "123.txt",0
+
+SHFILEOPSTRUCTA:
+hwnd			DD	0
+wFunc			DD	FO_DELETE	; Тип операції
+pFrom			DD	offset FileName1
+pTo			DD	0
+fFlags			DW	FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_FILESONLY or FOF_SIMPLEPROGRESS
+fAnyOperationsAborted	DD	0
+hNameMappings		DD	0
+lpszProgressTitle	DD	0
+
+
+;==============================================================
+	.code
+Start:	call SHFileOperationA, offset SHFILEOPSTRUCTA
+
+	call	ExitProcess,0
+	
+end	Start
+

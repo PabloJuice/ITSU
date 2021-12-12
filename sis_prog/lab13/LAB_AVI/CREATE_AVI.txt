@@ -1,0 +1,236 @@
+; Створення відео-роліка з рухів 3D-сцени
+
+ Extrn AVIFileInit:Proc, AVIFileOpenA:Proc, AVIFileCreateStream:Proc
+ Extrn AVIMakeCompressedStream:Proc,AVIStreamSetFormat:Proc,GetDIBits:Proc,AVIStreamWrite:Proc
+ Extrn AVIStreamRelease:Proc, AVIFileRelease:Proc, AVIFileExit:Proc
+ Extrn mciSendStringA:Proc, DeleteFileA:Proc
+
+	OF_CREATE                            equ 1000h
+	OF_WRITE                             equ 1h
+
+.data
+FLG_SwapBuffers	dd 1 	; чи можна виконувати команду SwapBuffers: 1-так, 0-ні
+
+;----------------------------------------------------
+ NUM_FRAMES dd 240	; клькість кадрів = 360/delta
+ Width_AVI	dd 480; розміри кадру
+ Height_AVI	dd 360
+;----------------------------------------------------
+ AVIFILEHANDLE		dd 0
+ AVISTREAM		dd 0
+ COMPRESSED_STREAM	dd 0
+ INDEX			dd 0	; початковий номер кадру
+
+; Сигнатури відео-кодеків
+;XVID divc 2VI3 CVSM VUYI 34PM 24PM 4GPM msvc cvid - ok
+
+AVISTREAMINFO:
+        fccType		dd "sdiv"	; streamtypeVIDEO
+        fccHandler	dd "divc"; можливі кодеки "XVID","divc";"2VI3";"CVSM";"VUYI";"34PM";"24PM";"4GPM"	; Mpeg4
+        dwFlags 	dd 0
+        dwCaps 		dd 0
+        wPriority 	dw 0
+        wLanguage 	dw 0
+        dwScale		dd 1
+        dwRate		dd 24	; кількість кадрів на секунду
+        dwStart 	dd 0
+        dwLength 	dd 0
+        dwInitialFrames dd 0
+        dwSuggestedBufferSize dd 0
+        dwQuality	dd 0;-1
+        dwSampleSize 	dd 0
+        rcFrame		dd 0,0,0,0	; розмір кадру
+        dwEditCount 	dd 0
+	dwFormatChangeCount dd 0
+	szName db "Video Stream",64 dup(0)
+
+
+AVICOMPRESSOPTIONS:
+    fccType1		dd "sdiv";"SDIV"
+    fccHandler1		dd "divc"; відеокомпресор "DIVX"; "divc"; "2VI3";"CVSM";"VUYI";"34PM";"24PM";"4GPM"	;  Mpeg4
+    dwKeyFrameEvery	dd 0
+    dwQuality1		dd -1
+    dwBytesPerSecond	dd 0
+    dwFlags1		dd 0
+    lpFormat		dd offset BITMAPINFOHEADER_AVI
+    cbFormat		dd 40
+    lpParms		dd 0
+    cbParms		dd 0
+    dwInterleaveEvery	dd -1
+
+ AVI_File_Name	db "new.avi",0	; буде створений відео-файл
+
+.data?
+BITMAPINFOHEADER_AVI dd 40 dup (?)
+
+
+;------------------------------------------------------------------------
+.code
+	call DeleteFileA,offset AVI_File_Name
+	call AVIFileInit	;- iнiцiалiзацiя AVI-бiблiотеки
+
+	call AVIFileOpenA,offset AVIFILEHANDLE,offset AVI_File_Name,OF_CREATE or OF_WRITE,0 ;створити новий файл
+	cmp AVIFILEHANDLE,0
+	jz ERR_OPEN
+
+;----------------------- Заповнюємо структуру AVISTREAMINFO:
+	mov BITMAPINFOHEADER_AVI,40
+
+	mov eax,Width_AVI
+	mov FrameWidth,eax
+	mov rcFrame+8,eax	; ширина кадра
+
+	mov ecx,Height_AVI
+	mov FrameHeight,ecx
+	mov rcFrame+12,ecx	; висота кадра
+	mul ecx
+	mov ecx,3;4	; rgba
+	mul ecx
+	mov dwSuggestedBufferSize,eax	; розмір буферу
+	mov biSizeImageFrame,eax
+;------------------------------ Використрвуємо її для формування відеопротоку:
+
+	call AVIFileCreateStream,AVIFILEHANDLE,offset AVISTREAM,offset AVISTREAMINFO
+	cmp AVISTREAM,0
+	jz ERR_CREATE_STREAM
+
+	call AVIMakeCompressedStream,offset COMPRESSED_STREAM,AVISTREAM,offset AVICOMPRESSOPTIONS,0
+	cmp COMPRESSED_STREAM,0
+	jz ERR_COMPRESS
+
+	call AVIStreamSetFormat,COMPRESSED_STREAM,0,offset SCENE_BITMAPINFOHEADER, 40
+	cmp eax,0
+	jnz ERR_FORM
+
+;------------------------------------------------------------------------------------------
+   include DIBSect.txt	; створення невидимої копії екрану та призначити в неї вивід OpenGL
+;------------------------------------------------------------------------------------------
+
+; задати параметри спостереження в залежності від розмірів у BMP-файлі
+	call glViewport, 0,0,Width_AVI,Height_AVI	; встановити все вiкно для огляду
+	call glMatrixMode, GL_PROJECTION
+
+	call glLoadIdentity	; встановити початковий стан
+	fild Width_AVI
+	fild Height_AVI
+	fdivp
+	fstp TEMP	; TEMP = width / height 
+
+	push qword ptr Deep_scene	; вiдстань до кiнця сцени
+	push qword ptr p1q	; вiдстань до початку сцени
+	push qword ptr TEMP	; GLwidth/GLheight
+	push qword ptr p45q	; кут огляду
+	call gluPerspective	; встановити параметри спостереження
+
+   ; зсув спостерігача від сцени
+
+	call glTranslatef,OBSERVE_X,OBSERVE_Y,distance	; Загальне переміщення спостерігача по X,Y та Z
+;-------------------------------------------------------------
+	call LOAD_ALL_TEXTURES	; наново завантажити текстури
+
+	mov FLG_PREPARE_FONT,0	; наново завантажити шрифти
+;-------------------------------------------------------------
+
+   ; обнулення поточної матриці (матриці перетворень моделі)
+	call glMatrixMode, GL_MODELVIEW
+	call glLoadIdentity
+	call glRotatef,GAMA,Pz1,Pz2,Pz3 ; повертаємо на delta за кожну промальовку
+
+	call glEnable, GL_DEPTH_TEST	; об'єкти можуть перетинатись
+	call glEnable, GL_TEXTURE_2D	; включити механ_зм обробки текстури
+	call glMaterialfv, GL_FRONT, GL_EMISSION, offset NO_MaterialColor
+
+mov FLG_SwapBuffers,0	; заборонено використовувати другий буфер
+
+;============================================================
+; Записуємо NUM_FRAMES кадрів у відео-ролик:
+	mov ecx,NUM_FRAMES	; клькість кадрів
+CREATE_AVI_LOOP:
+	push ecx  ; змінна циклу
+
+	call DrawGLScene		; побудова та вивід одного кадру 3D-сцени у bitmap
+
+; Дублювання bitmap на екран:
+	call DrawDibDraw,DrawDibDC,hDC1,250,70,500,400,offset SCENE_BITMAPINFOHEADER,ADR_BMPSCR1,0,0,-1,-1,0
+
+; Запис bitmap-кадра у відео-ролик:
+	call AVIStreamWrite,COMPRESSED_STREAM,INDEX,1,ADR_BMPSCR1,biSizeImage,0,0,0
+	
+	cmp eax,0 ; інакше помилка в EAX
+	jnz ERR_WRITE
+	
+    inc INDEX ; Номер кадра
+
+	pop ecx  ; змінна циклу
+	dec ecx
+	jnz CREATE_AVI_LOOP
+
+	call ReleaseDC,0,hDC1
+;------------------------------------------------ закриваємо потоки і файл:
+
+	call AVIStreamRelease,AVISTREAM
+
+	call AVIStreamRelease,COMPRESSED_STREAM
+
+	call AVIFileRelease,AVIFILEHANDLE
+
+	call AVIFileExit
+
+; Відтворюємо відео-ролик через MCI-команду
+	call mciSendStringA,offset COMMAND,0,0,0
+
+	call DrawDibClose,DrawDibDC
+	call InvalidateRect,0,0,1
+
+	mov eax,hRC	; переключаємо OpenGL знову у вікно
+	call wglMakeCurrent, GLhDC,eax	; вибрати дане вiкно для роботи
+
+mov FLG_SwapBuffers,1	; дозволено використовувати другий буфер
+
+	call SET_SIZE_SCENE
+
+	call DeleteObject,GL_BMP_hDC
+	call DeleteObject,hSECTION
+
+	call GetTickCount	; рівномірна обробка в часі
+	mov NEXT_TICK,eax
+
+  jmp EX_AVI_CREATE
+;=============================================================
+
+
+ERR_SIZE:
+	call MessageBoxA,0,offset TEXT_ERR_SIZE,offset AVI_File_Name,10h
+	jmp STOP
+
+ERR_CREATE_STREAM:
+	call MessageBoxA,0,offset TEXT_ERR_CREATE_STREAM,offset AVI_File_Name,10h
+	jmp STOP
+
+ERR_WRITE:
+	call MessageBoxA,0,offset TEXT_ERR_WRITE,offset AVI_File_Name,10h
+	jmp STOP
+
+ERR_COMPRESS:
+	call MessageBoxA,0,offset TEXT_ERR_COMPRESSION,offset AVI_File_Name,10h
+	jmp STOP
+
+ERR_OPEN:
+	call MessageBoxA,0,offset TEXT_ERR_OPEN,offset AVI_File_Name,10h
+	jmp STOP
+
+ERR_FORM:
+	call MessageBoxA,0,offset TEXT_ERR_FORM,offset AVI_File_Name,10h
+	jmp STOP
+
+ TEXT_END	db "Відео-ролик створено!",0
+ TEXT_ERR_SIZE	db "Wrong horizontal size",0
+ TEXT_ERR_WRITE	db "WRITE ERROR",0
+ TEXT_ERR_CREATE_STREAM db "Error of Creating Stream",0
+ TEXT_ERR_COMPRESSION	db "Choose other compression",0
+ TEXT_ERR_OPEN	db "Error opening the file",0
+ TEXT_ERR_FORM	db "Error in BITMAPINFOHEADER",0
+
+ COMMAND	db "play new.avi wait",0
+
+EX_AVI_CREATE:

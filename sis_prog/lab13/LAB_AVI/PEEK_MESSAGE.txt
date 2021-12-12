@@ -1,0 +1,38 @@
+; PEEK-MESSAGE.txt - замінює GetMessageA
+
+	extrn PeekMessageA:Proc
+
+WM_MOUSEMOVE                         equ 200h	; lparam = X,Y wparam = MK_... 
+WM_LBUTTONDOWN                       equ 201h
+WM_LBUTTONUP                         equ 202h
+WM_LBUTTONDBLCLK                     equ 203h
+WM_RBUTTONDOWN                       equ 204h
+WM_RBUTTONUP                         equ 205h
+WM_RBUTTONDBLCLK                     equ 206h
+WM_MBUTTONDOWN                       equ 207h	; lparam = X,Y
+WM_MBUTTONUP                         equ 208h
+WM_MBUTTONDBLCLK                     equ 209h
+
+.DATA?
+msg:			; структура повiдомлення
+    msHWND	dd ?
+    msMESSAGE	dd ?
+    msWPARAM	dd ?
+    msLPARAM	dd ?
+    msTIME	dd ?
+    ptX		dd ?
+    ptY		dd ?
+
+;========================================================
+.CODE
+	call PeekMessageA,offset msg, PARENT_hWnd, 0, 0,1	;PM_REMOVE
+	or eax,eax
+    jz EX_MSG
+
+    cmp msMESSAGE, WM_KEYDOWN
+    jnz NO_KEYDOWN
+
+;	include keyboard.txt	; обробка натиснених клавіш
+
+    NO_KEYDOWN:
+EX_MSG:

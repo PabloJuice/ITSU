@@ -1,0 +1,307 @@
+; Calculate the coordinates of quads on pressing button "SHOW":
+
+;—творенн€ поверхн≥ обертанн€
+
+;1. ќпускаЇмо функц≥ю Y= y0(t) на початок координат :
+
+;y1(t) = y0(t)  - Y_SYM1 ;     x1(t) = x0(t) - X_SYM1
+
+;2. ќбертаЇмо функц≥ю F
+
+;     F ( X= x1(t), Y= y1(t) )
+
+; навколо ос≥ OZ на кут  w = -w :
+
+; x2(t) = x1(t) cos(w) Ц y1(t) sin(w)
+; y2(t) = x1(t) sin(w) + y1(t) cos(w)
+
+;3. ќбертаЇмо функц≥ю
+
+;     F ( X= x2(t), Y= y2(t) )
+
+; навколо ос≥ OX на кут f:
+
+;||  1     0          0  ||   || x2(t)||
+;||  0   cos(f)   Цsin(f)|| x || y2(t)||
+;||  0   sin(f)    cos(f)||   ||  0   ||
+
+; x3(t) = x2(t)
+; y3(t) = y2(t) cos(f)
+; z3(t) = y2(t) sin(f)
+
+; повертаЇмо навколо центру кривизни
+
+; y3(t) = y3(t)+R+y3xcos(Fi)
+
+; || cos(gi)  Цsin(gi)  0 ||   || x3(t)||
+; || sin(gi)   cos(gi)  0 || x || y3(t)||
+; ||  0         0       1 ||   || z3(t)||
+
+; y4(t) = y4(y)-R-y3xcos(Fi)
+
+.data
+ LAMBDA	dd 0
+
+.data?
+   R	 dd ?
+ F_LAMBDA dd ?
+  Gi	 dd ?
+  D_Gi	 dd ?
+ COS_Gi	 dd ?
+ SIN_Gi	 dd ?
+  Y3ta	dd ?
+   X4t	dd ?
+   Y4t	dd ?
+   Z4t	dd ?
+ HALF_OF_LEN_X	dd ?
+
+.code
+;--------------------------------------------------------
+FIND_X3_Y3_Z3_AND_STORE_TO_QUADS:	; esi,Fi,Omega
+	finit
+	fild dword ptr [esi]	; X
+	fisub X_SYM1a		; move function to beginning of coordinates 
+	fst X1t
+	fmul COS_Omega
+	fild dword ptr [esi+4]	; Y
+	fisub Y_SYM1		; move function to beginning of coordinates 
+	fst Y1t
+	fmul SIN_Omega
+	FSUBP		; Subtract ST(0) from ST(1), store result in ST(1), and pop register stack
+
+	fst X3t	; X2t=X3t
+	fisub  HALF_OF_LEN_X
+	fmul D_Gi
+	fstp Gi
+
+; The result of this is:
+; x2(t) = x1(t) cos(w) - y1(t) sin(w) -> X3(t)
+
+	fld X1t
+	fmul SIN_Omega
+	fld Y1t
+	fmul COS_Omega
+	FADDP		; Add ST(0) to ST(1), store result in ST(1), and pop the register stack
+	fstp Y2t
+
+; The result of this is:
+; y2(t) = x1(t) sin(w) + y1(t) cos(w)
+
+	call CORRECT_RAD_Y2t	; Change the radius of rotation
+
+;x3(t) = x2(t)
+;y3(t) = y2(t) cos(f)
+;z3(t) = y2(t) sin(f)
+
+	fld Fi
+	fsincos	; Compute the sine and cosine of ST(0); replace ST(0) with the sine, and push the cosine onto the register stack.
+	fmul Y2t
+	fstp Y3t
+	fmul Y2t
+	fstp Z3t
+
+; y3(t) = y3(t)+R
+; || cos(gi)  Цsin(gi)  0 ||   || x3(t)||
+; || sin(gi)   cos(gi)  0 || x || y3(t)||
+; ||  0         0       1 ||   || z3(t)||
+; y4(t) = y4(y)-R
+
+finit
+	fld Y3t
+	fsub R
+	fstp Y3t
+
+	fld Gi
+	fsincos	; Compute the sine and cosine of ST(0); replace ST(0) with the sine, and push the cosine onto the register stack.
+	fst COS_Gi
+	fmul X3t
+	fstp X4t
+	fst SIN_Gi
+	fmul Y3t
+	fchs
+	fadd X4t
+	fstp X4t
+	fld X3t
+	fmul SIN_Gi
+	fld Y3t
+	fmul COS_Gi
+	faddp
+	fstp Y4t
+
+	fld Y4t
+	fadd R
+	fstp Y4t
+
+
+	mov edi,END_MAS_POINTS_QUADS
+	fld X4t
+	fmul SCALE_X
+	fstp dword ptr [edi]
+	add edi,4
+	fld Y4t
+	fmul SCALE_Y
+	fstp dword ptr [edi]
+	add edi,4
+	fld Z3t
+	fmul SCALE_Z
+	fstp dword ptr [edi]
+	add edi,4
+	mov END_MAS_POINTS_QUADS,edi
+       ret
+
+;---------------------------------------------- Y2t -> Y2tB
+;                 (Y2tB - Y2t) (Fi-Alfa)
+; y2(t) = Y2t + ______________________
+;                      (Beta-Alfa)
+
+;                 (X2tB - X2t) (Fi-Alfa)
+; X2(t) = X2t + ______________________
+;                      (Beta-Alfa)
+
+CORRECT_RAD_Y2t:	; Change the radius of rotation
+	fld Beta
+	fsub Alfa
+	fstp BIM
+	fld Fi
+	fsub Alfa
+	fstp FIM
+
+	call FIND_XB_YB
+
+	fld Y2tB
+	fsub Y2t
+	fmul FIM
+	fdiv BIM
+	fadd Y2t
+	fstp Y2t
+
+	fld X3tB
+	fsub X3t
+	fmul FIM
+	fdiv BIM
+	fadd X3t
+	fstp X3t
+  ret
+
+;----------------
+.data?
+  FIM	dd ?	; (Fi-Alfa)   in radians
+  BIM	dd ?	; (Beta-Alfa) in radians
+
+  XAB	dd ?
+  KAZ	dd ?
+  X1tA	dd ?
+  X1tB	dd ?
+  Y1tA	dd ?
+  Y1tB	dd ?
+  X3tA	dd ?
+  X3tB	dd ?
+  Y2tA	dd ?
+  X2tB	dd ?
+  Y2tB	dd ?
+
+.code
+FIND_XB_YB:
+	push esi
+	mov eax,LEN_MAS_FUNCT
+	inc eax	; END_MAS_POINTS_FUNCT1
+	shl eax,2	; x4 bytes of each element
+	add esi,eax
+;	fild dword ptr [esi]
+;	fstp X2tB
+;	fild dword ptr [esi+4]
+;	fstp Y2tB
+;	pop esi
+;  ret
+;-----------------------------------------
+;	push esi
+;	push edi
+;	mov eax,LEN_MAS_FUNCT
+;	inc eax	; END_MAS_POINTS_FUNCT1
+;	shl eax,2	; x4
+;	add esi,eax
+;	  push esi
+;	finit
+;	mov esi,offset MAS_POINTS_FUNCT2
+ ;   L1_FIND_Y2:
+;	cmp esi,END_MAS_POINTS_FUNCT2
+;	jnc END1_FIND_Y2
+;	mov edi,esi
+;	add esi,8
+;
+	fild dword ptr [esi]	; esi X
+	fisub X_SYM1a		; move function to beginning of coordinates 
+	fst X1tB
+	fmul COS_Omega
+	fild dword ptr [esi+4]	; esi Y
+	fisub Y_SYM1		; move function to beginning of coordinates 
+	fst Y1tB
+	fmul SIN_Omega
+	FSUBP		; Subtract ST(0) from ST(1), store result in ST(1), and pop register stack
+;;	fst X3tB	; X2t=X3t  fstp
+	fstp X3tB	; X2t=X3t  fstp
+
+;	fcomp X3t	; fcom
+;	fstsw ax
+;	sahf
+ ;    jc L1_FIND_Y2	; cf=1 if st(0)<Beta
+  ;END1_FIND_Y2:		; Nearest point for Fk found
+;
+;                                          X3t-X3tA
+; y2tB = Y2tA + (Y2tB - Y2tA)*KAZ;   KAZ = __________ =[0..1]
+;                                          X3tB-X3tA
+
+;	finit
+;	fild dword ptr [edi]	; edi X
+;	fisub X_SYM1a		; move function to beginning of coordinates 
+;	fst X1tA
+;	fmul COS_Omega
+;	fild dword ptr [edi+4]	; edi Y
+;	fisub Y_SYM1		; move function to beginning of coordinates 
+;	fst Y1tA
+;	fmul SIN_Omega
+;	FSUBP		; Subtract ST(0) from ST(1), store result in ST(1), and pop register stack
+;	fstp X3tA	; X2t=X3t
+;
+	fld X1tB
+	fmul SIN_Omega
+	fld Y1tB
+	fmul COS_Omega
+	FADDP		; Add ST(0) to ST(1), store result in ST(1), and pop the register stack
+	fstp Y2tB	; =Yb
+;
+;	fld X1tA
+;	fmul SIN_Omega
+;	fld Y1tA
+;	fmul COS_Omega
+;	FADDP		; Add ST(0) to ST(1), store result in ST(1), and pop the register stack
+;	fstp Y2tA	; =Yb previous
+;-----------------
+;	fld X3t
+;	fsub X3tA
+
+;	fld X3tB
+;	fsub X3tA
+;	fdivp
+;	fst KAZ		; koefficient
+
+;	fld Y2tB
+;	fsub Y2tA
+;	fmulp
+
+;	fadd Y2tA
+;	fstp Y2tB
+;------------------- correct texture coordinates:
+;	  pop eax
+;	sub eax,edi
+;	sar eax,3
+;	mov XAB,eax
+;	fld KAZ
+;	fisub XAB
+;	fstp TEX_CORRECT_dY
+
+;	pop edi
+
+	pop esi
+  ret
+

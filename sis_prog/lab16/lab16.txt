@@ -1,0 +1,228 @@
+; Створити 2 треди
+
+.486
+.model flat,stdcall
+
+  extrn CreateThread:Proc
+  extrn ExitProcess:Proc
+  extrn ResumeThread:Proc
+  extrn SuspendThread:Proc
+  extrn SetPixel:Proc
+  extrn GetDC:Proc
+  extrn ReleaseDC:Proc
+  extrn MessageBoxA:Proc
+  extrn Sleep:Proc
+  extrn InvalidateRect:Proc
+  extrn SetThreadPriority:Proc
+
+      CREATE_SUSPENDED   equ 4h
+
+.data
+THREAD_ID1	dd	0
+hThread1	dd	0
+THREAD_ID2	dd	0
+hThread2	dd	0
+THREAD_ID3	dd	0
+hThread3	dd	0
+
+X1	dd 200*256
+Y1	dd 0
+COLOR1	DD	01f0000h
+
+X2	dd 300*256
+Y2	dd 0
+X3	dd 400*256
+Y3	dd 0
+COLOR2	DD	0ffh
+COLOR3	DD	111h
+XX1	dd	500	; координата першого кола
+XX2	dd	700	; координата другого кола
+XX3	dd	300
+P1	dd ?
+P2	dd ?
+P3	dd ?
+P4	dd ?
+
+HDC	dd 0
+HDC1	dd 0
+TITLE1	db "Arsen Butkovskiy",0
+TEXT1	db " STOP",0
+
+.code
+Start:
+
+	call CreateThread,0,0,offset PROC1,0,CREATE_SUSPENDED,offset THREAD_ID1
+	mov hThread1,eax
+
+	call CreateThread,0,0,offset PROC2,0,CREATE_SUSPENDED,offset THREAD_ID2
+	mov hThread2,eax
+	
+	call CreateThread,0,0,offset PROC3,0,CREATE_SUSPENDED,offset THREAD_ID3
+	mov hThread3,eax
+
+	call SetThreadPriority,hThread1,2,3
+
+	call ResumeThread,hThread1
+
+	call ResumeThread,hThread2
+	
+	call ResumeThread,hThread3
+
+call Sleep,5000
+call SuspendThread,hThread1
+call SuspendThread,hThread2
+call SuspendThread,hThread3
+;-------------------------
+
+	call MessageBoxA,0,offset TEXT1,offset TEXT1,0
+
+	call InvalidateRect,0,0,1
+	call ExitProcess,0
+
+
+;====================================
+	; X:=X-Y*Dt
+	; Y:=Y+X*Dt
+PROC1	proc param1:dword
+	mov ecx,20
+   L3:	push ecx
+	mov ecx,10000
+   L2:	push ecx
+	mov eax,Y1
+	sar eax,8
+	mov ebx,X1
+	sub ebx,eax	; X:=X-Y*Dt
+	mov X1,ebx
+	mov eax,X1
+	sar eax,8
+	mov ebx,Y1
+	add ebx,eax	; Y:=Y+X*Dt
+	mov Y1,ebx
+	mov eax,X1
+	sar eax,8
+	sar ebx,8
+	add eax,XX1
+	add ebx,400
+
+	mov P3,eax
+	mov P4,ebx
+
+	call GetDC,0
+	mov HDC1,eax
+	call SetPixel,HDC1,P3,P4,COLOR1
+	call ReleaseDC,0,HDC1
+
+	inc X1
+	inc Y1
+	pop ecx
+	dec ecx
+     jnz L2
+
+	ADD COLOR1,5
+	inc XX1
+	pop ecx
+	dec ecx
+     jnz L3	
+
+;	call SuspendThread,hThread2
+	mov ecx,200
+	jmp  L3
+
+	ret
+endp
+
+;====================================
+	; X:=X-Y*Dt
+	; Y:=Y+X*Dt
+PROC2	proc param2:dword
+	mov ecx,200
+   L4:	push ecx
+	mov ecx,5000
+   L1:	push ecx
+	mov eax,Y2
+	sar eax,8
+	mov ebx,X2
+	sub ebx,eax	; X:=X-Y*Dt
+	mov X2,ebx
+	mov eax,X2
+	sar eax,8
+	mov ebx,Y2
+	add ebx,eax	; Y:=Y+X*Dt
+	mov Y2,ebx
+	mov eax,X2
+	sar eax,8
+	sar ebx,8
+	add eax,XX2
+	add ebx,400
+
+	mov P1,eax
+	mov P2,ebx
+
+	call GetDC,0
+	mov HDC,eax
+	call SetPixel,HDC,P1,P2,COLOR2
+	call ReleaseDC,0,HDC
+
+	inc X2
+	inc Y2
+	pop ecx
+	dec ecx
+     jnz L1
+	add COLOR2,256
+	dec XX2
+	pop ecx
+	dec ecx
+     jnz L4
+	ret
+endp
+
+PROC3	proc param1:dword
+	mov ecx,20
+   L6:	push ecx
+	mov ecx,2000
+   L5:	push ecx
+	mov eax,Y3
+	sar eax,8
+	mov ebx,X3
+	sub ebx,eax	; X:=X-Y*Dt
+	mov X3,ebx
+	mov eax,X3
+	sar eax,8
+	mov ebx,Y3
+	add ebx,eax	; Y:=Y+X*Dt
+	mov Y3,ebx
+	mov eax,X3
+	sar eax,8
+	sar ebx,8
+	add eax,XX3
+	add ebx,400
+
+	mov P3,eax
+	mov P4,ebx
+
+	call GetDC,0
+	mov HDC1,eax
+	call SetPixel,HDC1,P3,P4,COLOR1
+	call ReleaseDC,0,HDC1
+
+	inc X3
+	inc Y3
+	pop ecx
+	dec ecx
+     jnz L5
+
+	ADD COLOR3,5
+	inc XX3
+	pop ecx
+	dec ecx
+     jnz L6	
+
+;	call SuspendThread,hThread3
+	mov ecx,200
+	jmp  L6
+
+	ret
+endp
+;====================================
+
+end Start

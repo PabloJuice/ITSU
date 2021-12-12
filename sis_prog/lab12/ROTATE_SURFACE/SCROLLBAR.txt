@@ -1,0 +1,103 @@
+
+extrn InitCommonControls:Proc
+extrn SetScrollInfo:Proc
+extrn SetScrollPos:Proc
+extrn GetScrollPos:Proc
+extrn TextOutA:Proc
+extrn CreateSolidBrush:Proc
+
+WM_CTLCOLORSCROLLBAR		equ 137h
+WM_HSCROLL			equ 114h
+WM_CLOSE			equ 10h
+WM_KEYDOWN			equ 100h
+
+CS_PUBLICCLASS                       equ 4000h
+WS_CHILD                             equ 40000000h
+SB_LINELEFT                          equ 0
+SB_LINERIGHT                         equ 1
+SB_THUMBTRACK                        equ 5
+SB_CTL                               equ 2
+
+
+.data
+
+SCROLL_HWnd		dd 0
+
+SCROLL_CLASSNAME db 'ScrollBar',0	; _м'€ стандартного класу
+
+SBM_SETPOS                         equ 0E0h
+
+SCROLLINFO:
+  dd 7*4	;    UINT cbSize; 
+  dd 31-8	;SIF_ALL	;    UINT fMask; 
+  dd 0	;     int  nMin; 
+  dd 360+5-1 ; int  nMax; 
+  dd 5	;    UINT nPage; 
+  dd 0	;180    int  nPos; 
+  dd 0	;    int  nTrackPos; 
+
+
+SCROLL_POS	dd 0
+COORD_TEXT	dd 0
+
+LEN1	dd 0
+FORMAT1	db "Scroll Position:  %ld       ",0
+
+hBRUSH	dd 0
+
+;=======================================
+.code
+	call InitCommonControls
+
+;*************************************************
+SCROLL_PROC	proc h1:dword, mes1:dword, wparam1:dword, lparam1:dword
+        cmp     mes1,WM_HSCROLL
+	jnz NO_SCROLL
+	call GetScrollPos,lparam1,SB_CTL
+	mov ebx,eax
+	mov eax,wparam1
+	cmp al,SB_THUMBTRACK
+	jz M1_TRACK
+	cmp al,SB_LINELEFT
+	jz M1_LEFT
+	cmp al,SB_LINERIGHT
+	jz M1_RIGHT
+	jmp NO_SCROLL
+ M1_TRACK:
+	mov ebx,wparam1
+	shr ebx,16
+	jmp M1
+
+ M1_LEFT: dec ebx
+	js NO_SCROLL
+	jmp M1
+
+ M1_RIGHT: inc ebx
+ M1:	mov SCROLL_POS,ebx
+	call SetScrollPos,lparam1,SB_CTL,SCROLL_POS,1
+
+	call _wsprintfA,offset TEXT1,offset FORMAT1,SCROLL_POS
+	add esp,12
+	call lstrlen, offset TEXT1
+	mov LEN1,eax
+	mov esi,MAXY
+	sub esi,140
+	call GetDC,h1
+	push eax	; параметр використовуЇтьс€ в ReleaseDC
+	call TextOutA,eax,50,esi,offset TEXT1,LEN1
+	call ReleaseDC,h1
+
+;-------------------------
+	mov eax,SCROLL_POS
+	mov LAMBDA,eax
+
+     call CREATE_SURFACE_DATA
+
+;-------------------------
+  NO_SCROLL:
+	cmp mes1,WM_CTLCOLORSCROLLBAR
+	jnz NO_COLOR
+	mov eax,hBRUSH
+NO_COLOR:
+	ret
+endp SCROLL_PROC

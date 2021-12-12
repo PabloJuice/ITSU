@@ -1,0 +1,187 @@
+.data
+   CURSOR_X	dd ?	; current cursor position
+   CURSOR_Y	dd ?
+
+  HBRUSH_CURSOR_DRAG	dd ?  ; the color is displaied draging
+   HBRUSH_CURSOR dd ?	; define the color that fills the ellipse
+   HBRUSH	 dd ? 	; previous brush
+   TEMP_EAX	dd  ?
+   MIN_EAX	dd  ?
+   MIN_ECX	dd  ?	; saved the nearest coordinate
+   MIN_EDX	dd  ?
+   OLD_X	dd  ?
+   OLD_Y	dd  ?
+
+.code
+;================================================================
+   Extrn CreateSolidBrush:Proc, Ellipse:Proc
+
+PREPARE_DISPLAY_CURSOR:		; Preparations for cursor drawing
+	call CreateSolidBrush,0fff000h
+	mov HBRUSH_CURSOR,eax
+	call CreateSolidBrush,0fffffh
+	mov HBRUSH_CURSOR_DRAG,eax
+	ret
+
+;================================================================
+TEST_DISPLAY_MOUSE_ELLIPSE:
+; Find nearest elipse if [ecx]=CURSOR_X and [edx]=CURSOR_Y
+; for furter changing ECX and EDX:
+	mov eax,[ecx]
+	sub eax,CURSOR_X	; current cursor position
+	jns @M1
+	neg eax
+@M1:	
+	cmp eax,120
+	jnc @NO_ELIPS1	; CF=0
+	mul al
+	mov TEMP_EAX,eax
+	mov eax,[edx]
+	sub eax,CURSOR_Y	; current cursor position
+	jns @M2
+	neg eax
+@M2:
+	cmp eax,120
+	jnc @NO_ELIPS1	; CF=0
+	mul al
+	add eax,TEMP_EAX
+	and eax,3ffffh
+	cmp eax,MIN_EAX
+	jnc @NO_ELIPS1	; CF=0
+	mov MIN_EAX,eax
+	mov MIN_ECX,ecx	; save the nearest coordinate
+	mov MIN_EDX,edx
+   ret
+
+;==============================================================
+NEW_ELLIPSE_COORDINATES:
+; draw ellipse if [ecx]=CURSOR_X and [edx]=CURSOR_Y
+; if LBUTTON is pressed, the program changes ECX and EDX:
+     cmp MIN_EAX,03fffh
+     jnc @NO_ELIPS1	; NO CHANGE COORDINATES
+
+	mov ecx,MIN_ECX	; save the nearest coordinate
+	mov edx,MIN_EDX
+	cmp DRAG_FLAG,0
+     jnz X123
+	;@NO_ELIPS1
+
+	pushad
+	call GetDC,hwnd
+	mov hDC,eax
+	call SelectObject,hDC,HBRUSH_CURSOR
+	mov HBRUSH,eax
+	popad
+	pushad
+	mov eax,[edx]
+	add eax,4
+	push eax
+	mov eax,[ecx]
+	add eax,4
+	push eax
+	mov eax,[edx]
+	sub eax,8
+	push eax
+	mov eax,[ecx]
+	sub eax,8
+	push eax
+	call Ellipse,hDC
+	call SelectObject,hDC,HBRUSH
+	call ReleaseDC,hwnd,hDC
+	popad
+	jmp @NO_ELIPS1
+X123:
+	mov eax,[ecx]
+	mov OLD_X,eax
+	mov eax,CURSOR_X
+	mov [ecx],eax
+	mov eax,[edx]
+	mov OLD_Y,eax
+	mov eax,CURSOR_Y
+	mov [edx],eax
+;---------------------------- Testing for paralell moving:
+	mov eax,CURSOR_X
+	sub eax,OLD_X
+	mov edx,CURSOR_Y
+	sub edx,OLD_Y
+
+	push ebx
+	mov ebx,NUMBER_OF_POINTS	; moving pairs of point
+	push esi
+	call FIND_ESI_POINTS_ADDRESS
+;	mov esi,offset POINTS
+    L_XA:
+	cmp ecx,esi
+      jnz NO_XA
+	add [esi+8],eax
+	add [esi+12],edx
+      NO_XA:
+	add esi,16
+	dec ebx
+   jnz L_XA
+	pop esi
+	pop ebx
+
+	stc	; ellipse has been drawn
+@NO_ELIPS1:	; CF=0
+
+  ret
+
+;================================================
+   WM_MOUSEMOVE      equ 200h
+    MK_LBUTTON       equ 1h
+    MK_RBUTTON       equ 2h
+    MK_SHIFT         equ 4h
+    MK_CONTROL       equ 8h
+    MK_MBUTTON       equ 10h
+   WM_LBUTTONDOWN    equ 201h
+   WM_LBUTTONUP      equ 202h
+
+.data
+  DRAG_FLAG	dd 0	; This flag =1 if user press left button of the mouse
+
+.code
+;=============================================================
+TEST_MSG_MOUSEMOVE:	; get the cursor position and dragflag
+	cmp wmsg,WM_MOUSEMOVE
+ jnz NO_MOUSEMOVE
+	  mov eax,lparam
+	  and eax,0ffffh
+	  mov CURSOR_X,eax
+	  mov eax,lparam
+	  shr eax,16
+	  mov CURSOR_Y,eax
+
+	mov eax,ecx
+	sub eax,CURSOR_X	; current cursor position
+	jns @M11
+	neg eax
+@M11:	cmp eax,5
+	jnc @NO_ELIPS1	; CF=0
+	mov eax,edx
+	sub eax,CURSOR_Y	; current cursor position
+	jns @M21
+	neg eax
+@M21:	cmp eax,5
+	jnc @NO_ELIPS2	; CF=0
+
+	call PAINT
+
+  NO_MOUSEMOVE:
+	cmp wmsg,WM_LBUTTONDOWN
+      jnz NO_BUTTONDOWN
+	  mov DRAG_FLAG,1
+	call PAINT
+      jmp NO_BUTTONUP
+
+   NO_BUTTONDOWN:
+	cmp wmsg,WM_LBUTTONUP
+      jnz NO_BUTTONUP
+	  mov DRAG_FLAG,0
+	call PAINT
+  NO_BUTTONUP:
+
+@NO_ELIPS2:	; CF=0
+
+  ret
+

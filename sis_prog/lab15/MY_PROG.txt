@@ -1,0 +1,266 @@
+;.486
+;.model flat,STDCALL
+
+  extrn GetModuleHandleA:Proc, ;ExitProcess:Proc 
+  extrn CreateWindowExA:Proc, RegisterClassA:Proc, ;GetDC:Proc
+  extrn DispatchMessageA:Proc, DefWindowProcA:Proc, LoadCursorA:Proc
+  extrn ChoosePixelFormat:Proc, SetPixelFormat:Proc, wglCreateContext:Proc
+  extrn wglMakeCurrent:Proc, glViewport:Proc, glMatrixMode:Proc
+  extrn glEnable:Proc, glLoadIdentity:Proc,gluPerspective:Proc,glClear:Proc
+  extrn SwapBuffers:PROC, PeekMessageA:PROC, glVertex3f:Proc, glColor3f:Proc
+  extrn glTranslatef:Proc, glRotatef:Proc, glBegin:Proc, glEnd:Proc,glFinish:Proc
+  extrn glTexCoord2f:Proc, LoadImageA:Proc, GetObjectA:Proc, GetDIBits:Proc, gluBuild2DMipmaps:Proc
+
+
+ WS_POPUP	 EQU 80000000h
+ WS_VISIBLE	 EQU 10000000h
+ WS_CLIPSIBLINGS EQU 04000000h
+ WS_CLIPCHILDREN EQU 02000000h
+ WM_KEYDOWN	 EQU 100h
+ PM_REMOVE	 EQU 1
+
+GL_MODELVIEW                    EQU  1700h
+GL_PROJECTION                   EQU  1701h
+GL_DEPTH_TEST                   EQU  0B71h
+GL_COLOR_BUFFER_BIT     = 00004000h
+GL_DEPTH_BUFFER_BIT     = 00000100h
+GL_TRIANGLE_FAN		equ  00006h
+GL_TEXTURE_2D		equ  0DE1h
+LR_LOADFROMFILE	equ 10h
+LR_DEFAULTSIZE		equ 40h
+IMAGE_BITMAP		equ 0
+GL_UNSIGNED_BYTE	equ 1401h
+GL_RGB			equ 1907h
+
+;==========================================
+.data
+BITMAPINFOHEADER:
+  biSize	DD	10*4	; розмiр BITMAPINFOHEADER
+  Tex_Width	DD	0	; ширина бiтового зображення в пiкселах
+  Tex_Height	DD	0	; висота бiтового зображення в пiкселах
+  PLANES_BMP	DW	1	; кiлькiсть площин кольору
+  BITSPIXEL_BMP	DW	24	; кiлькiсть бiт на пiксел
+  biCompression	DD	0	; 0 = BI_RGB ; 3 = BI_bitfields
+  biSizeImage	DD	0	; Width_BMP*Heigth_BMP*BITSPIXEL_BMP/8
+  biXPelsPerMeter DD	0	; роздiльна здатнiсть по горизонталi
+  biYPelsPerMeter DD	0	; роздiльна здатнiсть по вертикалi
+  biClrUsed	DD	0
+  biClrImportant DD	0,0
+
+PIXELS		dd	0	; кiлькiсть точок малюнку
+FILENAME	db "water.bmp",0	; малюнок текстури
+HImg		dd	0		; хендл малюнка
+
+BUF2		dd	40 dup(0)	; заголовок малюнка
+BUF1		DB 	512*512*3+100 DUP(?)	; дані малюнка
+
+
+
+p8q	dq 8.0			; 8и-байтнi константи
+p45q	dq 45.0
+p1q	dq 1.0		 
+
+p1	dd	 1.0		; 4х-байтнi константи
+m1	dd	-1.0
+m4	dd	-4.0
+
+dt1	dd  0.09	; крок повороту навколо OY
+dt2	dd -0.07	; крок повороту навколо OZ
+r1	dd  0.0		; кут повороту навколо OY
+r2	dd  0.0		; кут повороту навколо OZ
+
+TEMP	dq 0	; робоча змiнна
+
+WndClassName db 'ABBA',0;
+
+WC	  dd 0023h,offset WndProc,0,0	; структура WNDCLASS
+hInstance dd 0,0
+hCursor	  dd 0,1,0,offset WndClassName
+
+ hWnd	dd 0	; хендл вiкна
+ hDC	dd 0	; графiчний контекст вiкна
+ hRC	dd 0	; графiчний контекст OpenGL
+
+msg	dd 0
+   msMESSAGE	dd 0
+   msWPARAM	dd 0,0,0,0,0
+
+ width	dd 500		; розмiри вiкна
+ height	dd 400
+ 
+PIXELFORMATDESCRIPTOR:
+  nSize			dw	28h
+  nVersion		dw	2
+  dwFlags		dd	25h	; прапорцi для використання OpenGL
+  iPixelType		db	0
+  cColorBits		db	24	;16
+  cRedBits		db	13 dup(0)
+  cDepthBits		db	32	;16
+  cStencilBits		db	16 dup(0)
+
+;	    R    G    B 	 R    G    B	 R    G    B
+COLORS	dd 0.9, 0.1, 0.0,	0.2, 1.0, 0.0,	0.5, 0.1, 1.0
+	dd 1.0, 0.5, 0.5,	0.5, 1.0, 0.5,	0.5, 0.5, 1.0
+	dd 0.8, 0.5, 0.5,	1.0, 0.7, 0.2,	0.9, 0.5, 1.0
+	dd 0.3, 0.6, 0.7,	0.1, 0.9, 1.0,	0.7, 0.4, 0.95
+ARRAY_OF_POINTS:	; координати фiгури
+;	     X    Y    Z  	  X    Y    Z	  X    Y    Z
+	dd  0.0, 0.0, 0.5,	-1.0, 0.0, 0.0,	-0.7,-0.7, 0.0
+	dd  0.0,-1.0, 0.0,	 0.7,-0.7, 0.0,	 0.7,-0.7, 1.5
+	dd  0.92,-0.38,0.5,	 1.0, 0.0, 1.5,	 1.0, 0.0, 0.0
+	dd  0.7, 0.7, 0.0,	 0.0, 1.0, 0.0,	-0.7, 0.7, 0.0
+                      
+;================================================
+.code
+;start:
+	call GetModuleHandleA,0
+	mov hInstance,eax
+	call LoadCursorA,0,7f00h
+	mov  hCursor,eax
+	call RegisterClassA, offset WC
+
+	call CreateWindowExA,0,eax,0,WS_CLIPSIBLINGS or WS_CLIPCHILDREN \
+		 or WS_VISIBLE,100,100,width,height,0,0,hInstance,0
+	mov hWnd,eax
+
+	call GetDC, hWnd
+	mov hDC,eax
+
+	call ChoosePixelFormat, hDC, offset PIXELFORMATDESCRIPTOR
+	call SetPixelFormat, hDC,eax,offset PIXELFORMATDESCRIPTOR
+	call wglCreateContext, hDC		; створити графiчний контекст OpenGL
+	mov hRC,eax
+	call wglMakeCurrent, hDC,eax	; вибрати дане вiкно для роботи
+;===========================================
+	call glEnable, GL_TEXTURE_2D	; включити механізм обробки текстури
+
+	call LoadImageA,0,offset FILENAME,IMAGE_BITMAP,0,0,LR_LOADFROMFILE or LR_DEFAULTSIZE	; завантажити малюнок з файлу
+	mov	HImg,eax
+	or eax,eax
+	jz STOP
+
+	mov eax,40	; отримати BITMAPINFOHEADER малюнку:
+	mov dword ptr BUF2,eax
+	call GetObjectA,HImg,eax,offset BUF2
+
+	mov	esi,offset BUF2
+	mov	eax,[esi+4]	; Ширина малюнку
+	mov	Tex_Width,eax
+	mov	ebx,[esi+8]	; Висота малюнку
+	mov	Tex_Height,ebx
+
+	mul ebx	; Отримати кiлькiсть пiкселiв
+	mov PIXELS,eax
+	mov ebx,3	; 24/8
+	mul ebx	; Отримати кiлькiсть байт в малюнку
+	mov biSizeImage,eax
+
+; Отримати данi малюнку в форматi, який заданий в BITMAPINFOHEADER: 
+	call GetDIBits,hDC,HImg,0,Tex_Height,offset BUF1,offset BITMAPINFOHEADER,0
+	cmp eax,0
+	jz STOP
+
+	mov ecx,PIXELS	; Помiняти байти “Red” i “Blue” в кожному пiкселi:
+	mov esi,offset BUF1
+L_TEX1:	mov al,[esi]
+	mov ah,[esi+2]
+	mov [esi+2],al
+	mov [esi],ah
+	add esi,3
+loop L_TEX1
+; Створити 2х-вимiрну текстуру з масиву пiкселей:
+	call gluBuild2DMipmaps, GL_TEXTURE_2D, 3, Tex_Width, Tex_Height, GL_RGB, GL_UNSIGNED_BYTE, offset BUF1
+
+;-------------------------------------------
+	call glEnable, GL_DEPTH_TEST	; об’єкти можуть перетинатись
+	call glViewport, 0,0,width,height	; встановити все вiкно для огляду
+	call glMatrixMode, GL_PROJECTION
+	call glLoadIdentity	; встановити початковий стан
+	fild width
+	fild height
+	fdivp
+	fstp TEMP	; TEMP = width / height 
+
+	push qword ptr p8q	; вiдстань до кiнця сцени
+	push qword ptr p1q	; вiдстань до початку сцени
+	push qword ptr TEMP	; width/height
+	push qword ptr p45q	; кут огляду
+	call gluPerspective	; встановити параметри спостереження
+
+	call glMatrixMode, GL_MODELVIEW
+;========================================
+MSG_LOOP:
+	call DrawGLScene		; пiдпрограма користувача
+	call SwapBuffers,hDC		; обмiняти вiдео-сторiнки
+	call PeekMessageA, offset msg,0,0,0,PM_REMOVE
+	or eax,eax
+	jz MSG_LOOP
+
+	.if  msMESSAGE == WM_KEYDOWN
+		cmp msWPARAM,1bh		; якщо код <ESC>, то STOP
+		jz      STOP
+	.endif
+
+	call DispatchMessageA, offset msg
+	jmp MSG_LOOP
+
+;STOP:	call ExitProcess,0
+
+;========================================
+DrawGLScene proc
+	call glClear, GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT
+	call glLoadIdentity	; встановити початковий стан
+
+	call glTranslatef, 0,0,m4	; змiщаємося по OZ
+	call glRotatef, r1,0,p1,0	; повертаємо по OY
+	call glRotatef, r2,0,0,p1	; повертаємо по OZ
+	call glTranslatef, m1,0,0	; змiщаємося по OX
+
+	call glBegin, GL_TRIANGLE_FAN	; малюємо з’єднанi в одну точку трикутники
+	mov ecx,3*4	; кiлькiсть точок в масивi
+	mov esi,offset COLORS
+	mov edi,offset ARRAY_OF_POINTS
+    L1:	pushad
+	call glTexCoord2f, dword ptr [esi], dword ptr [esi+4]
+	call glVertex3f,dword ptr [edi],dword ptr [edi+4],dword ptr [edi+8]
+	popad
+	add esi,8	; колiр кожної точки займає 12 байт
+	add edi,12	; координати кожної точки займають 12 байт
+	loop L1
+	call glEnd	; закiнчили малювати трикутники
+
+	fld r1		; змiна кута повороту по OY
+	fadd dt1
+	fstp r1
+
+	fld r2		; змiна кута повороту по OZ
+	fadd dt2
+	fstp r2
+
+	call glFinish	; закiнчити малювати сцену
+	ret
+DrawGLScene endp	
+;=================================================
+
+WndProc proc uses ebx edi esi, hwnd : DWORD, wmsg : DWORD, wparam: DWORD, lparam:DWORD
+	call DefWindowProcA,hwnd,wmsg,wparam,lparam
+	ret
+WndProc endp
+
+;end start
+
+
+;-------------------------------------------------------------------------------
+
+;В розділ оголошення констант добавити наступні константи:
+;В розділ сегменту даних добавити наступні змінні і структури:
+;В розділ коду програми, який відповідає за підготовку конвеєра OpenGL:
+;В процедурi малювання сцени замiнити виклик
+;“call glColor3f, dword ptr [esi],dword ptr [esi+4],dword ptr [esi+8]”
+;на виклик зв’язування текстури:
+		
+;а також помiняти в цiй процедурi збiльшення ESI:
+;add esi,8	; дві координати по 4 байти
+
+
+
